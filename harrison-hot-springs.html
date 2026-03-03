@@ -1,0 +1,3365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V3 - HydroDome Harrison Hot Springs Demo</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; display:flex; height:100vh; overflow:hidden; background:#1a1a2e; }
+
+#sidebar {
+  width: 340px; min-width: 340px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  color: #e0e0e0; display:flex; flex-direction:column;
+  z-index: 1000; overflow-y:auto;
+  border-right: 2px solid #2D5016;
+}
+#sidebar::-webkit-scrollbar { width:6px; }
+#sidebar::-webkit-scrollbar-thumb { background:#2D5016; border-radius:3px; }
+
+.logo-area {
+  padding: 20px; text-align:center;
+  background: linear-gradient(135deg, #2D5016 0%, #1a3a0a 100%);
+  border-bottom: 3px solid #FF6B35;
+}
+.logo-area h1 { font-size:28px; color:#fff; letter-spacing:2px; margin-bottom:2px; }
+.logo-area .dome-icon { font-size:36px; margin-bottom:4px; }
+.logo-area .subtitle { font-size:12px; color:#FF6B35; text-transform:uppercase; letter-spacing:3px; }
+.logo-area .location { font-size:11px; color:#8fbc8f; margin-top:6px; }
+
+.section {
+  padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.08);
+  transition: background 0.2s;
+}
+.section.drag-over { background: rgba(255,107,53,0.1); border-top: 2px solid #FF6B35; }
+.section-header {
+  display:flex; align-items:center; cursor:pointer; user-select:none;
+}
+.section-header .drag-handle {
+  cursor:grab; margin-right:8px; color:#555; font-size:14px; line-height:1;
+}
+.section-header .drag-handle:active { cursor:grabbing; }
+.section-header h3 {
+  font-size:12px; text-transform:uppercase; letter-spacing:2px; color:#FF6B35; margin:0; flex:1;
+}
+.section-header .collapse-arrow {
+  font-size:10px; color:#666; transition:transform 0.2s; margin-left:8px;
+}
+.section.collapsed .section-body { display:none; }
+.section.collapsed .collapse-arrow { transform:rotate(-90deg); }
+.section-body { margin-top:10px; }
+
+.btn {
+  display:block; width:100%; padding:10px 14px; margin-bottom:8px;
+  border:none; border-radius:6px; font-size:13px; font-weight:600;
+  cursor:pointer; transition: all 0.2s; text-align:center;
+}
+.btn-primary { background:#2D5016; color:#fff; }
+.btn-primary:hover { background:#3a6b1e; }
+.btn-primary.active { background:#FF6B35; color:#fff; box-shadow:0 0 12px rgba(255,107,53,0.4); }
+.btn-orange { background:#FF6B35; color:#fff; }
+.btn-orange:hover { background:#ff8555; }
+.btn-danger { background:#c0392b; color:#fff; }
+.btn-danger:hover { background:#e74c3c; }
+.btn-outline { background:transparent; color:#8fbc8f; border:1px solid #2D5016; }
+.btn-outline:hover { background:rgba(45,80,22,0.3); }
+.btn-sim { background: linear-gradient(135deg, #2D5016, #FF6B35); color:#fff; }
+.btn-sim:hover { opacity:0.9; }
+.btn-timesim { background: linear-gradient(135deg, #3498db, #2ecc71); color:#fff; }
+.btn-timesim:hover { opacity:0.9; }
+.btn-fire { background: linear-gradient(135deg, #e74c3c, #f39c12); color:#fff; }
+.btn-fire:hover { opacity:0.9; }
+.btn-fire.active { box-shadow:0 0 12px rgba(231,76,60,0.6); }
+.btn-scada { background: linear-gradient(135deg, #1a1a2e, #2c3e50); color:#2ecc71; border:1px solid #2ecc71; }
+.btn-scada:hover { background:#2c3e50; }
+.btn-evac { background: linear-gradient(135deg, #c0392b, #e67e22); color:#fff; border:1px solid #e74c3c; }
+.btn-evac:hover { opacity:0.9; }
+.btn-evac.active { box-shadow:0 0 12px rgba(231,76,60,0.5); }
+
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stat-card {
+  background: rgba(255,255,255,0.05); border-radius:8px; padding:10px;
+  text-align:center; border:1px solid rgba(45,80,22,0.3);
+}
+.stat-card .value { font-size:22px; font-weight:700; color:#fff; }
+.stat-card .label { font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+.stat-card.full { grid-column:1/-1; }
+
+.capacity-bar { height:8px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:6px; overflow:hidden; }
+.capacity-fill { height:100%; border-radius:4px; transition: width 0.5s, background 0.5s; }
+.capacity-label { font-size:11px; margin-top:4px; text-align:center; }
+
+.status-badge {
+  display:inline-block; padding:4px 12px; border-radius:12px;
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+}
+.status-green { background:rgba(46,204,113,0.2); color:#2ecc71; border:1px solid #2ecc71; }
+.status-yellow { background:rgba(241,196,15,0.2); color:#f1c40f; border:1px solid #f1c40f; }
+.status-red { background:rgba(231,76,60,0.2); color:#e74c3c; border:1px solid #e74c3c; }
+
+#map-container { flex:1; position:relative; }
+#map { width:100%; height:100%; }
+
+#map-tooltip {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  background:rgba(26,26,46,0.9); color:#FF6B35; padding:8px 20px;
+  border-radius:20px; font-size:13px; font-weight:600; z-index:999;
+  pointer-events:none; transition:opacity 0.3s; border:1px solid #FF6B35;
+}
+#map-tooltip.hidden { opacity:0; }
+
+#legend {
+  position:absolute; bottom:20px; right:10px; z-index:999;
+  background:rgba(26,26,46,0.92); padding:12px 16px; border-radius:8px;
+  font-size:11px; color:#ccc; border:1px solid rgba(45,80,22,0.5);
+}
+#legend h4 { color:#FF6B35; margin-bottom:6px; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+.legend-item { display:flex; align-items:center; margin:4px 0; }
+.legend-color { width:24px; height:4px; border-radius:2px; margin-right:8px; }
+.legend-circle { width:12px; height:12px; border-radius:50%; margin-right:8px; border:2px solid; }
+
+#coverage-display {
+  position:absolute; top:10px; right:10px; z-index:999;
+  background:rgba(26,26,46,0.92); padding:12px 16px; border-radius:8px;
+  font-size:13px; color:#fff; border:1px solid #2D5016; min-width:140px; text-align:center;
+}
+#coverage-display .cov-val { font-size:28px; font-weight:700; color:#2ecc71; }
+#coverage-display .cov-lbl { font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; }
+
+#cost-overlay {
+  position:absolute; top:80px; right:10px; z-index:999;
+  background:rgba(26,26,46,0.92); padding:14px 18px; border-radius:8px;
+  font-size:13px; color:#fff; border:1px solid #FF6B35; min-width:200px;
+}
+#cost-overlay .cost-title { font-size:10px; color:#FF6B35; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+#cost-overlay .cost-row { display:flex; justify-content:space-between; margin:4px 0; }
+#cost-overlay .cost-label { color:#aaa; font-size:12px; }
+#cost-overlay .cost-value { font-weight:700; font-size:14px; }
+#cost-overlay .roi-value { font-size:22px; font-weight:700; color:#2ecc71; text-align:center; margin-top:6px; }
+
+#reservoir-gauge {
+  position:absolute; z-index:800; pointer-events:none;
+  display:none;
+}
+.res-gauge-inner {
+  width:40px; height:100px; background:rgba(26,26,46,0.9); border-radius:6px;
+  border:1px solid #3498db; overflow:hidden; position:relative; pointer-events:auto;
+}
+.res-gauge-fill {
+  position:absolute; bottom:0; left:0; right:0;
+  background: linear-gradient(to top, #3498db, #5dade2);
+  transition: height 0.3s, background 0.5s;
+}
+.res-gauge-label {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-size:10px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.8);
+  z-index:2; white-space:nowrap;
+}
+.res-gauge-title {
+  font-size:8px; color:#aaa; text-align:center; margin-top:2px; pointer-events:auto;
+}
+
+#sim-clock {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  background:rgba(26,26,46,0.95); color:#3498db; padding:10px 24px;
+  border-radius:12px; font-size:22px; font-weight:700; z-index:999;
+  border:2px solid #3498db; display:none; font-family:monospace;
+}
+
+#timeline-bar {
+  position:absolute; bottom:0; left:0; right:0; height:40px;
+  background:rgba(16,16,30,0.95); z-index:999; display:none;
+  border-top:1px solid rgba(52,152,219,0.5); cursor:pointer;
+}
+#timeline-bar .tl-fill {
+  position:absolute; top:0; left:0; bottom:0;
+  background:linear-gradient(90deg, rgba(52,152,219,0.3), rgba(46,204,113,0.3));
+  pointer-events:none;
+}
+#timeline-bar .tl-markers {
+  position:absolute; top:0; left:0; right:0; bottom:0;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0 20px; pointer-events:none;
+}
+#timeline-bar .tl-mark { font-size:10px; color:#aaa; font-family:monospace; }
+#timeline-bar .tl-playhead {
+  position:absolute; top:0; bottom:0; width:3px;
+  background:#3498db; box-shadow:0 0 8px rgba(52,152,219,0.6);
+  pointer-events:none;
+}
+
+#wind-arrow {
+  position:absolute; top:60px; left:10px; z-index:999;
+  width:50px; height:50px; background:rgba(26,26,46,0.9);
+  border-radius:50%; border:1px solid rgba(255,255,255,0.2);
+  display:none; align-items:center; justify-content:center;
+  font-size:24px;
+}
+
+.pipe-tooltip { font-size:12px; }
+
+#scada-panel {
+  position:absolute; bottom:50px; left:10px; right:10px; z-index:998;
+  background:rgba(5,5,15,0.96); border:2px solid #1a5c1a; border-radius:8px;
+  color:#33ff33; font-family:'Courier New',monospace; padding:16px;
+  display:none; max-height:280px; overflow-y:auto;
+}
+#scada-panel::-webkit-scrollbar { width:4px; }
+#scada-panel::-webkit-scrollbar-thumb { background:#1a5c1a; }
+#scada-panel .scada-header {
+  display:flex; justify-content:space-between; align-items:center;
+  border-bottom:1px solid #1a5c1a; padding-bottom:8px; margin-bottom:10px;
+}
+#scada-panel .scada-title { font-size:14px; font-weight:700; color:#33ff33; letter-spacing:2px; }
+#scada-panel .scada-close { cursor:pointer; color:#ff3333; font-size:16px; }
+.scada-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+.scada-meter {
+  background:rgba(10,30,10,0.8); border:1px solid #1a5c1a; border-radius:4px;
+  padding:8px 10px; text-align:center;
+}
+.scada-meter .sm-label { font-size:9px; color:#66aa66; text-transform:uppercase; letter-spacing:1px; }
+.scada-meter .sm-value { font-size:20px; font-weight:700; margin:4px 0; }
+.scada-meter .sm-unit { font-size:10px; color:#448844; }
+.scada-meter.alert-yellow .sm-value { color:#ffaa00; }
+.scada-meter.alert-red .sm-value { color:#ff3333; animation:scada-blink 0.8s infinite; }
+@keyframes scada-blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+.scada-valve { display:inline-block; width:12px; height:12px; border-radius:50%; margin:0 3px; border:1px solid #448844; }
+.scada-valve.open { background:#33ff33; box-shadow:0 0 4px #33ff33; }
+.scada-valve.closed { background:#333; }
+.scada-zone-row { display:flex; align-items:center; gap:6px; font-size:11px; margin:3px 0; }
+
+@keyframes building-pulse {
+  0%, 100% { fill-opacity:0.7; }
+  50% { fill-opacity:0.4; }
+}
+.building-protected path { animation: building-pulse 2s infinite; }
+
+.ember-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:radial-gradient(#ffee00, #ff6600);
+  box-shadow:0 0 4px #ff6600;
+  animation: ember-flicker 0.4s infinite alternate;
+}
+@keyframes ember-flicker { 0%{opacity:1;transform:scale(1)} 100%{opacity:0.6;transform:scale(0.7)} }
+
+@media (max-width:768px) {
+  body { flex-direction:column; }
+  #sidebar { width:100%; min-width:auto; max-height:45vh; order:2; }
+  #map-container { order:1; flex:1; }
+  .stat-grid { grid-template-columns:1fr 1fr; }
+}
+@media print { #sidebar { display:none; } #map { width:100vw; height:100vh; } }
+
+.wind-row { display:flex; gap:8px; align-items:center; margin:6px 0; }
+.wind-row label { font-size:11px; min-width:50px; }
+.wind-row select, .wind-row input[type=range] { flex:1; }
+.wind-row select {
+  background:#1a1a2e; color:#e0e0e0; border:1px solid #2D5016;
+  padding:4px 6px; border-radius:4px; font-size:11px;
+}
+.wind-speed-val { font-size:11px; min-width:40px; text-align:right; color:#3498db; }
+
+.sim-zone-row { display:flex; align-items:center; gap:6px; margin:4px 0; font-size:12px; }
+.sim-zone-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.sim-zone-status { font-weight:600; }
+.sim-stat-row { display:flex; justify-content:space-between; font-size:12px; margin:3px 0; }
+.sim-stat-val { font-weight:700; color:#fff; }
+.cistern-bar-mini { display:inline-block; width:60px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; vertical-align:middle; }
+.cistern-bar-mini-fill { height:100%; border-radius:4px; transition:width 0.3s; }
+
+.fire-row { display:flex; gap:8px; align-items:center; margin:6px 0; }
+.fire-row label { font-size:11px; min-width:60px; }
+.fire-row input[type=range] { flex:1; }
+.fire-speed-val { font-size:11px; min-width:30px; text-align:right; color:#e74c3c; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="logo-area">
+    <div class="dome-icon">&#x1f6e1;&#xfe0f;</div>
+    <h1>V10 HYDRODOME</h1>
+    <div class="subtitle">Wildfire Defense System</div>
+    <div class="location">&#x1f4cd; Harrison Hot Springs, BC</div>
+  </div>
+
+  <div class="section" data-panel="controls">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>Controls</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <button class="btn btn-primary" id="btn-place" onclick="togglePlaceMode()">&#x1f5fc; Place Tower Mode</button>
+      <button class="btn btn-outline" onclick="exportTowers()" style="border-color:#2ecc71;color:#2ecc71;">💾 Save Layout</button>
+      <button class="btn btn-outline" onclick="importTowers()" style="border-color:#3498db;color:#3498db;">📂 Load Layout</button>
+      <button class="btn btn-fire" id="btn-ignition" onclick="toggleIgnitionMode()">&#x1f525; Set Ignition Point</button>
+      <button class="btn btn-outline" id="btn-force-all" onclick="toggleForceAllOn()" style="border-color:#e67e22;color:#e67e22;">⚡ Force All On</button>
+      <button class="btn btn-outline" id="btn-fire-toggle" onclick="toggleFireBehavior()" style="display:none;">&#x1f525; Fire Model: ON</button>
+      <button class="btn btn-sim" id="btn-sim" onclick="runSimulation()">&#x26a1; Run Simulation</button>
+      <button class="btn btn-timesim" id="btn-timesim" onclick="toggleTimeSim()">&#x25b6; Run Time Simulation</button>
+      <div id="speed-controls" style="display:none;margin-bottom:8px;">
+        <div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Playback Speed: <span id="speed-label" style="color:#fff;font-weight:bold;">1x</span></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;color:#888;">1x</span>
+          <input type="range" id="speed-slider" min="0" max="100" value="0" style="flex:1;accent-color:#3498db;cursor:pointer;" oninput="setSimSpeedFromSlider(this.value)">
+          <span style="font-size:10px;color:#888;">100x</span>
+        </div>
+      </div>
+      <button class="btn btn-outline" id="btn-auto-activate" onclick="toggleAutoActivate()" style="border-color:#9b59b6;color:#9b59b6;">🎯 Auto-Activate: ON</button>
+      <button class="btn btn-evac" id="btn-evac" onclick="toggleEvacuationMode()">&#x1f6a8; Evacuation Mode: ON</button>
+      <button class="btn btn-orange" onclick="loadRecommended()">&#x1f4cb; Load Recommended Layout</button>
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <button class="btn btn-outline" style="flex:1" onclick="resetAll()">&#x21ba; Reset</button>
+        <button class="btn btn-outline" style="flex:1" onclick="exportReport()">&#x1f4c4; Export</button>
+      </div>
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <button class="btn btn-outline" style="flex:1" onclick="exportPDF()">&#x1f4c4; Export PDF</button>
+        <button class="btn btn-scada" style="flex:1" onclick="toggleSCADA()">&#x1f4ca; SCADA Dashboard</button>
+      </div>
+      <button class="btn btn-outline" id="btn-spray-anim" onclick="toggleSprayAnimation()" style="margin-top:4px;">&#x1f4a8; Spray Animation: ON</button>
+    </div>
+  </div>
+
+  <div class="section" data-panel="summary">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>System Summary</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="value" id="stat-towers">0</div>
+          <div class="label">Towers</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="stat-zones">0</div>
+          <div class="label">Zones</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="stat-flow">0</div>
+          <div class="label">GPM Demand</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="stat-coverage">0</div>
+          <div class="label">Ha Coverage</div>
+        </div>
+        <div class="stat-card full">
+          <div class="value" id="stat-cost">$0</div>
+          <div class="label">Est. Cost (CAD)</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;text-align:center;">
+        <span id="stat-protected" style="font-size:13px;color:#3498db;font-weight:600;">0/118 structures protected</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- V8: Triage panel moved ABOVE duty cycle and capacity -->
+  <div class="section" id="zone-triage-section" style="display:none;" data-panel="triage">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>&#x1f3af; Zone Triage</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="zone-triage-panel" style="font-size:12px; line-height:1.6; color:#bbb;">
+        Manual zone control available during simulation.
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="sim-live-section" style="display:none;" data-panel="simlive">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>&#x23f1; Live Simulation</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="sim-live-panel" style="font-size:12px; line-height:1.6; color:#bbb;"></div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="capacity">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>System Capacity</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px;">Hydraulic Load</span>
+        <span class="status-badge status-green" id="status-badge">STANDBY</span>
+      </div>
+      <div class="capacity-bar"><div class="capacity-fill" id="capacity-fill" style="width:0%;background:#2ecc71;"></div></div>
+      <div class="capacity-label" id="capacity-label">No towers placed</div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="cistern">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>Cistern Storage</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="cistern-info" style="font-size:12px; line-height:1.6; color:#bbb;">
+        Place towers to see cistern analysis.
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="duty-section" data-panel="duty">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>Duty Cycle</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="duty-info" style="font-size:12px; line-height:1.6; color:#bbb;">
+        Place towers and run simulation to see duty cycle recommendations.
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="fire-section" style="display:none;" data-panel="fire">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>&#x1f525; Fire Simulation</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="fire-row">
+        <label>Speed</label>
+        <input type="range" id="fire-speed-mult" min="0.5" max="5" step="0.5" value="2" oninput="document.getElementById('fire-speed-val').textContent=this.value+'x'">
+        <span class="fire-speed-val" id="fire-speed-val">2x</span>
+      </div>
+      <div id="fire-info" style="font-size:12px; line-height:1.6; color:#bbb;"></div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="wind">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>Wind</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="wind-row">
+        <label>Direction</label>
+        <select id="wind-dir" onchange="updateWind()">
+          <option value="-1">Calm</option>
+          <option value="0">N</option><option value="45">NE</option>
+          <option value="90">E</option><option value="135">SE</option>
+          <option value="180">S</option><option value="225" selected>SW</option>
+          <option value="270">W</option><option value="315">NW</option>
+        </select>
+      </div>
+      <div class="wind-row">
+        <label>Speed</label>
+        <input type="range" id="wind-speed" min="0" max="30" value="15" oninput="updateWind()">
+        <span class="wind-speed-val" id="wind-speed-val">15 km/h</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="layers">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>Map Layers</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('pipes',this.checked)"> Water Mains
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('hydrants',this.checked)"> Hydrants
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('buildings',this.checked)"> Buildings
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('coverage',this.checked)"> Coverage Circles
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('fire',this.checked)"> Fire Layer
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked id="chk-spray-anim" onchange="setSprayAnimation(this.checked)"> Spray Animation
+      </label>
+    </div>
+  </div>
+
+  <div class="section" style="border-bottom:none;" data-panel="about">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <span class="drag-handle" draggable="true">&#x2807;</span>
+      <h3>About</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <p style="font-size:11px; line-height:1.5; color:#888;">
+        HydroDome uses Nelson Big Gun 100 Series sprinklers mounted on 30ft towers to create humidity domes that protect structures from wildfire. Each tower covers ~0.50 ha (80m diameter) at 200 GPM, 70 PSI. Towers operate on duty cycling via Capstone C65 microturbine-powered zones. V10 adds a 4-level hydraulic cascade refill model -- each tower gets priority-based refill constrained by its cistern connection (750 GPM), street pipe capacity, trunk line, and the F1 reservoir feed bottleneck. Emptiest cisterns get flow first. Water network data sourced from OpenStreetMap.
+      </p>
+      <p style="font-size:10px; color:#555; margin-top:8px;">&copy; 2025 Carmanah Wildfire Defense</p>
+    </div>
+  </div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <canvas id="spray-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:450;"></canvas>
+  <div id="map-tooltip" class="hidden">Click map to place tower</div>
+  <div id="sim-clock">T+00:00</div>
+  <div id="coverage-display">
+    <div class="cov-val" id="cov-pct">0%</div>
+    <div class="cov-lbl">Town Coverage</div>
+  </div>
+  <div id="cost-overlay">
+    <div class="cost-title">Cost vs Damage</div>
+    <div class="cost-row"><span class="cost-label">System Cost:</span><span class="cost-value" id="cost-system" style="color:#FF6B35;">$0</span></div>
+    <div class="cost-row"><span class="cost-label">Protects Against:</span><span class="cost-value" style="color:#e74c3c;">$500M+</span></div>
+    <div class="roi-value" id="cost-roi">--</div>
+    <div style="font-size:9px;color:#666;text-align:center;">Return on Investment</div>
+  </div>
+  <div id="north-arrow" style="
+    position:absolute; top:80px; right:10px; z-index:999;
+    width:44px; height:44px; background:rgba(26,26,46,0.9);
+    border-radius:50%; border:1px solid rgba(255,255,255,0.3);
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; pointer-events:none;
+  ">
+    <div style="font-size:9px;color:#e74c3c;font-weight:900;line-height:1;margin-bottom:-2px;">N</div>
+    <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid #e74c3c;margin-bottom:-1px;"></div>
+    <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:12px solid #fff;"></div>
+  </div>
+  <div id="wind-arrow">&#x2b07;</div>
+  <div id="reservoir-gauge"></div>
+  <div id="legend">
+    <h4>Legend</h4>
+    <div class="legend-item"><div class="legend-color" style="background:#1a75ff;height:5px;"></div> Trunk/Main (200-250mm)</div>
+    <div class="legend-item"><div class="legend-color" style="background:#4da6ff;"></div> Secondary (150mm)</div>
+    <div class="legend-item"><div class="legend-color" style="background:#2ecc71;"></div> Pipe &lt;60% load</div>
+    <div class="legend-item"><div class="legend-color" style="background:#f1c40f;"></div> Pipe 60-85% load</div>
+    <div class="legend-item"><div class="legend-color" style="background:#e74c3c;"></div> Pipe &gt;85% load</div>
+    <div class="legend-item"><div class="legend-circle" style="background:rgba(45,80,22,0.3);border-color:#2D5016;width:10px;height:10px;"></div> Tower Coverage</div>
+    <div class="legend-item"><div class="legend-circle" style="background:#e74c3c;border-color:#e74c3c;width:8px;height:8px;"></div> Hydrant</div>
+    <div class="legend-item"><div class="legend-color" style="background:linear-gradient(90deg,#ff4400,#ff8800);height:6px;"></div> Fire Front</div>
+    <div class="legend-item"><div class="legend-circle" style="background:#ffaa00;border-color:#ff6600;width:8px;height:8px;"></div> Ember Zone</div>
+    <div class="legend-item"><div class="legend-circle" style="background:#ff6600;border-color:#ff6600;width:8px;height:8px;border-style:dashed;"></div> Spot Fire</div>
+    <div class="legend-item" style="margin-top:4px;font-size:10px;color:#aaa;">Pipe Load (during sim):</div>
+    <div class="legend-item"><div style="width:20px;height:3px;background:#2ecc71;border-radius:2px;margin-right:6px;"></div> &lt;50%</div>
+    <div class="legend-item"><div style="width:20px;height:4px;background:#f1c40f;border-radius:2px;margin-right:6px;"></div> 50-80%</div>
+    <div class="legend-item"><div style="width:20px;height:5px;background:#e74c3c;border-radius:2px;margin-right:6px;"></div> &gt;80%</div>
+  </div>
+  <div id="timeline-bar" onclick="seekTimeline(event)">
+    <div class="tl-fill" id="tl-fill"></div>
+    <div class="tl-playhead" id="tl-playhead" style="left:0"></div>
+    <div class="tl-markers">
+      <span class="tl-mark">0:00</span>
+      <span class="tl-mark">0:30</span>
+      <span class="tl-mark">1:00</span>
+      <span class="tl-mark">1:30</span>
+      <span class="tl-mark">2:00</span>
+      <span class="tl-mark">2:30</span>
+      <span class="tl-mark">3:00</span>
+    </div>
+  </div>
+  <div id="scada-panel">
+    <div class="scada-header">
+      <span class="scada-title">&#x25a3; HYDRODOME SCADA -- SYSTEM MONITOR</span>
+      <span class="scada-close" onclick="toggleSCADA()">&#x2715;</span>
+    </div>
+    <div id="scada-content" class="scada-grid"></div>
+  </div>
+</div>
+
+<script>
+// ===================== MAP SETUP =====================
+const LYTTON = [49.2970, -121.7830];
+const map = L.map('map', { zoomControl: true }).setView(LYTTON, 15);
+
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap', maxZoom: 19
+});
+const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '© Esri', maxZoom: 19
+});
+const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenTopoMap', maxZoom: 17
+});
+satLayer.addTo(map);
+L.control.layers({ 'Satellite': satLayer, 'Street': osmLayer, 'Topo': topoLayer }, {}, { position:'topleft' }).addTo(map);
+
+// ===================== DATA: WATER NETWORK (FVRD ArcGIS Layer 87 - All 253 Mains) =====================
+const waterMains = [
+  { id:'P-6', pts:[[49.303838,-121.785328],[49.303533,-121.785287],[49.303410,-121.785297],[49.299959,-121.785341],[49.298278,-121.784666],[49.296527,-121.784231]], diam:0.250, label:'P-6 (250mm)' },
+  { id:'P-19', pts:[[49.296368,-121.784275],[49.296375,-121.783933],[49.296432,-121.783850],[49.296431,-121.783352]], diam:0.200, label:'P-19 (200mm)' },
+  { id:'P-20', pts:[[49.296431,-121.783352],[49.296431,-121.781607]], diam:0.200, label:'P-20 (200mm)' },
+  { id:'P-21', pts:[[49.296431,-121.781490],[49.296608,-121.781493],[49.296728,-121.781528],[49.296859,-121.781576],[49.296929,-121.781679]], diam:0.150, label:'P-21 (150mm)' },
+  { id:'P-22', pts:[[49.296431,-121.781490],[49.296433,-121.781024],[49.296482,-121.780816],[49.296573,-121.780570],[49.297034,-121.780007]], diam:0.200, label:'P-22 (200mm)' },
+  { id:'P-23', pts:[[49.297034,-121.780007],[49.296956,-121.779812],[49.296889,-121.779591],[49.296827,-121.779309],[49.296740,-121.778853]], diam:0.200, label:'P-23 (200mm)' },
+  { id:'P-24', pts:[[49.296740,-121.778853],[49.296202,-121.779099]], diam:0.150, label:'P-24 (150mm)' },
+  { id:'P-25', pts:[[49.296740,-121.778853],[49.296510,-121.777675]], diam:0.200, label:'P-25 (200mm)' },
+  { id:'P-26', pts:[[49.296510,-121.777675],[49.296222,-121.777671],[49.295583,-121.777665]], diam:0.150, label:'P-26 (150mm)' },
+  { id:'P-28', pts:[[49.295441,-121.780245],[49.295444,-121.782259]], diam:0.150, label:'P-28 (150mm)' },
+  { id:'P-29', pts:[[49.295444,-121.782259],[49.295439,-121.782992],[49.295460,-121.783083],[49.295520,-121.783215],[49.295630,-121.783291],[49.296002,-121.783335],[49.296431,-121.783352]], diam:0.150, label:'P-29 (150mm)' },
+  { id:'P-31', pts:[[49.293832,-121.782086],[49.293560,-121.781684],[49.293371,-121.781453],[49.293249,-121.781325],[49.293031,-121.781146],[49.292917,-121.781086]], diam:0.250, label:'P-31 (250mm)' },
+  { id:'P-34', pts:[[49.291427,-121.779632],[49.290755,-121.779631],[49.290743,-121.778535]], diam:0.150, label:'P-34 (150mm)' },
+  { id:'P-35', pts:[[49.290743,-121.778535],[49.290394,-121.778544]], diam:0.150, label:'P-35 (150mm)' },
+  { id:'P-36', pts:[[49.290394,-121.778544],[49.290385,-121.777612]], diam:0.200, label:'P-36 (200mm)' },
+  { id:'P-37', pts:[[49.290394,-121.778544],[49.290409,-121.780134]], diam:0.200, label:'P-37 (200mm)' },
+  { id:'P-38', pts:[[49.291434,-121.780425],[49.291142,-121.780282],[49.290991,-121.780218],[49.290832,-121.780175],[49.290677,-121.780145],[49.290569,-121.780147],[49.290473,-121.780140],[49.290409,-121.780134]], diam:0.250, label:'P-38 (250mm)' },
+  { id:'P-40', pts:[[49.297034,-121.780007],[49.297128,-121.780184],[49.297332,-121.780466],[49.297548,-121.780656],[49.297763,-121.780767],[49.297826,-121.780797]], diam:0.150, label:'P-40 (150mm)' },
+  { id:'P-41', pts:[[49.297826,-121.780797],[49.297769,-121.781834]], diam:0.150, label:'P-41 (150mm)' },
+  { id:'P-42', pts:[[49.297826,-121.780797],[49.298073,-121.780844],[49.298273,-121.780844],[49.298605,-121.780835]], diam:0.150, label:'P-42 (150mm)' },
+  { id:'P-49', pts:[[49.298605,-121.780835],[49.298745,-121.780824],[49.299757,-121.780521],[49.300002,-121.780532]], diam:0.150, label:'P-49 (150mm)' },
+  { id:'P-45', pts:[[49.301098,-121.780583],[49.301321,-121.780598],[49.301371,-121.780637],[49.301410,-121.780711],[49.301434,-121.780831]], diam:0.150, label:'P-45 (150mm)' },
+  { id:'P-46', pts:[[49.301434,-121.780831],[49.301405,-121.780981],[49.301284,-121.781097],[49.300923,-121.781433]], diam:0.150, label:'P-46 (150mm)' },
+  { id:'P-47', pts:[[49.301098,-121.780583],[49.300923,-121.781433]], diam:0.150, label:'P-47 (150mm)' },
+  { id:'P-48', pts:[[49.300798,-121.782048],[49.300923,-121.781433]], diam:0.150, label:'P-48 (150mm)' },
+  { id:'P-50', pts:[[49.300381,-121.784097],[49.300243,-121.784739]], diam:0.150, label:'P-50 (150mm)' },
+  { id:'P-53', pts:[[49.298643,-121.784070],[49.298644,-121.784903]], diam:0.150, label:'P-53 (150mm)' },
+  { id:'P-54', pts:[[49.298644,-121.784903],[49.299841,-121.785405],[49.300107,-121.785404]], diam:0.350, label:'P-54 (350mm)' },
+  { id:'P-56', pts:[[49.300107,-121.785404],[49.301811,-121.785392]], diam:0.350, label:'P-56 (350mm)' },
+  { id:'P-57', pts:[[49.301811,-121.785392],[49.301943,-121.786406]], diam:0.250, label:'P-57 (250mm)' },
+  { id:'P-59', pts:[[49.301780,-121.783822],[49.301780,-121.782903]], diam:0.250, label:'P-59 (250mm)' },
+  { id:'P-62', pts:[[49.302495,-121.782897],[49.303430,-121.782889]], diam:0.150, label:'P-62 (150mm)' },
+  { id:'E-6', pts:[[49.303430,-121.782889],[49.303432,-121.783544],[49.303585,-121.784802]], diam:0.150, label:'E-6 (150mm)' },
+  { id:'E-7', pts:[[49.303430,-121.782889],[49.303421,-121.779846]], diam:0.050, label:'E-7 (50mm)' },
+  { id:'E-8', pts:[[49.303421,-121.779846],[49.303416,-121.778161],[49.303757,-121.776443]], diam:0.050, label:'E-8 (50mm)' },
+  { id:'P-72', pts:[[49.301515,-121.775667],[49.302145,-121.774026]], diam:0.150, label:'P-72 (150mm)' },
+  { id:'P-76', pts:[[49.299108,-121.776053],[49.299810,-121.774262]], diam:0.150, label:'P-76 (150mm)' },
+  { id:'P-78', pts:[[49.300558,-121.772356],[49.299540,-121.772343]], diam:0.150, label:'P-78 (150mm)' },
+  { id:'P-79', pts:[[49.299540,-121.772343],[49.299378,-121.772752]], diam:0.150, label:'P-79 (150mm)' },
+  { id:'P-80', pts:[[49.299378,-121.772752],[49.298710,-121.774498]], diam:0.150, label:'P-80 (150mm)' },
+  { id:'P-81', pts:[[49.298710,-121.774498],[49.298363,-121.775376],[49.298304,-121.775777],[49.298330,-121.776163],[49.298355,-121.776232],[49.298378,-121.776295]], diam:0.150, label:'P-81 (150mm)' },
+  { id:'P-82', pts:[[49.299108,-121.776053],[49.298991,-121.776055],[49.298875,-121.776062],[49.298732,-121.776086],[49.298597,-121.776138],[49.298482,-121.776210],[49.298378,-121.776295]], diam:0.200, label:'P-82 (200mm)' },
+  { id:'P-88', pts:[[49.298378,-121.776295],[49.298678,-121.777104]], diam:0.150, label:'P-88 (150mm)' },
+  { id:'P-84', pts:[[49.298378,-121.776295],[49.297650,-121.776927]], diam:0.200, label:'P-84 (200mm)' },
+  { id:'P-86', pts:[[49.297650,-121.776927],[49.297763,-121.777297],[49.297865,-121.777791]], diam:0.150, label:'P-86 (150mm)' },
+  { id:'P-71', pts:[[49.291406,-121.777650],[49.290813,-121.777653]], diam:0.200, label:'P-71 (200mm)' },
+  { id:'P-73', pts:[[49.286409,-121.777639],[49.286414,-121.778153]], diam:0.200, label:'P-73 (200mm)' },
+  { id:'P-74', pts:[[49.291427,-121.779632],[49.291406,-121.777650]], diam:0.150, label:'P-74 (150mm)' },
+  { id:'E-1', pts:[[49.302668,-121.787070],[49.302619,-121.786665]], diam:0.250, label:'E-1 (250mm)' },
+  { id:'L-1', pts:[[49.302679,-121.786637],[49.302619,-121.786665]], diam:0.150, label:'L-1 (150mm)' },
+  { id:'P-60B', pts:[[49.301780,-121.782903],[49.302335,-121.782877]], diam:0.200, label:'P-60B (200mm)' },
+  { id:'L-4', pts:[[49.302340,-121.782960],[49.302335,-121.782877]], diam:0.150, label:'L-4 (150mm)' },
+  { id:'L-5', pts:[[49.302604,-121.781024],[49.302493,-121.781008]], diam:0.150, label:'L-5 (150mm)' },
+  { id:'L-6', pts:[[49.303067,-121.779934],[49.303055,-121.779849]], diam:0.150, label:'L-6 (150mm)' },
+  { id:'P-69A', pts:[[49.302492,-121.779001],[49.302378,-121.778820]], diam:0.200, label:'P-69A (200mm)' },
+  { id:'P-69B', pts:[[49.302378,-121.778820],[49.300809,-121.777480]], diam:0.200, label:'P-69B (200mm)' },
+  { id:'L-7', pts:[[49.302347,-121.778895],[49.302378,-121.778820]], diam:0.150, label:'L-7 (150mm)' },
+  { id:'L-8', pts:[[49.300316,-121.778586],[49.300366,-121.778624]], diam:0.150, label:'L-8 (150mm)' },
+  { id:'P-71A', pts:[[49.300885,-121.777275],[49.301515,-121.775667]], diam:0.150, label:'P-71A (150mm)' },
+  { id:'L-9', pts:[[49.300946,-121.777319],[49.300885,-121.777275]], diam:0.150, label:'L-9 (150mm)' },
+  { id:'L-10', pts:[[49.301461,-121.775584],[49.301515,-121.775667]], diam:0.150, label:'L-10 (150mm)' },
+  { id:'L-11', pts:[[49.302078,-121.773955],[49.302145,-121.774026]], diam:0.150, label:'L-11 (150mm)' },
+  { id:'P-73A', pts:[[49.302145,-121.774026],[49.302455,-121.773244]], diam:0.150, label:'P-73A (150mm)' },
+  { id:'P-73B', pts:[[49.302455,-121.773244],[49.302589,-121.772881]], diam:0.150, label:'P-73B (150mm)' },
+  { id:'L-12', pts:[[49.302520,-121.773292],[49.302455,-121.773244]], diam:0.150, label:'L-12 (150mm)' },
+  { id:'P-74A', pts:[[49.302589,-121.772881],[49.302803,-121.772961],[49.303404,-121.772900]], diam:0.200, label:'P-74A (200mm)' },
+  { id:'P-74B', pts:[[49.303404,-121.772900],[49.303607,-121.772934]], diam:0.200, label:'P-74B (200mm)' },
+  { id:'L-13', pts:[[49.303403,-121.772957],[49.303404,-121.772900]], diam:0.150, label:'L-13 (150mm)' },
+  { id:'P-75A', pts:[[49.299881,-121.776621],[49.299517,-121.776302],[49.299375,-121.776193],[49.299237,-121.776128],[49.299108,-121.776053]], diam:0.200, label:'P-75A (200mm)' },
+  { id:'L-14', pts:[[49.299861,-121.776692],[49.299881,-121.776621]], diam:0.150, label:'L-14 (150mm)' },
+  { id:'L-15', pts:[[49.299120,-121.776121],[49.299108,-121.776053]], diam:0.150, label:'L-15 (150mm)' },
+  { id:'L-16', pts:[[49.299912,-121.774343],[49.299810,-121.774262]], diam:0.150, label:'L-16 (150mm)' },
+  { id:'P-77A', pts:[[49.299810,-121.774262],[49.300481,-121.772538]], diam:0.150, label:'P-77A (150mm)' },
+  { id:'P-77B', pts:[[49.300481,-121.772538],[49.300558,-121.772356]], diam:0.150, label:'P-77B (150mm)' },
+  { id:'L-17', pts:[[49.300544,-121.772576],[49.300487,-121.772524]], diam:0.150, label:'L-17 (150mm)' },
+  { id:'L-18', pts:[[49.299456,-121.772808],[49.299378,-121.772752]], diam:0.150, label:'L-18 (150mm)' },
+  { id:'L-19', pts:[[49.298790,-121.774522],[49.298724,-121.774464]], diam:0.150, label:'L-19 (150mm)' },
+  { id:'L-21', pts:[[49.297867,-121.777782],[49.297865,-121.777791]], diam:0.150, label:'L-21 (150mm)' },
+  { id:'L-20', pts:[[49.298377,-121.776403],[49.298378,-121.776295]], diam:0.150, label:'L-20 (150mm)' },
+  { id:'L-22', pts:[[49.298813,-121.778577],[49.298835,-121.778741]], diam:0.150, label:'L-22 (150mm)' },
+  { id:'L-23', pts:[[49.301886,-121.786416],[49.301943,-121.786406]], diam:0.150, label:'L-23 (150mm)' },
+  { id:'P-58A', pts:[[49.301811,-121.785392],[49.301787,-121.785201],[49.301788,-121.785126]], diam:0.250, label:'P-58A (250mm)' },
+  { id:'P-58B', pts:[[49.301788,-121.785126],[49.301783,-121.784105],[49.301780,-121.783822]], diam:0.250, label:'P-58B (250mm)' },
+  { id:'L-24', pts:[[49.301882,-121.785173],[49.301788,-121.785126]], diam:0.150, label:'L-24 (150mm)' },
+  { id:'L-25', pts:[[49.301873,-121.783825],[49.301780,-121.783822]], diam:0.150, label:'L-25 (150mm)' },
+  { id:'P-55A', pts:[[49.300243,-121.784739],[49.300160,-121.785143]], diam:0.150, label:'P-55A (150mm)' },
+  { id:'P-55B', pts:[[49.300160,-121.785143],[49.300107,-121.785404]], diam:0.150, label:'P-55B (150mm)' },
+  { id:'L-26', pts:[[49.300233,-121.785173],[49.300160,-121.785143]], diam:0.150, label:'L-26 (150mm)' },
+  { id:'L-27', pts:[[49.300308,-121.784066],[49.300381,-121.784097]], diam:0.150, label:'L-27 (150mm)' },
+  { id:'L-28', pts:[[49.300878,-121.782033],[49.300808,-121.782001]], diam:0.150, label:'L-28 (150mm)' },
+  { id:'P-44A', pts:[[49.300002,-121.780532],[49.301011,-121.780579]], diam:0.150, label:'P-44A (150mm)' },
+  { id:'P-44B', pts:[[49.301011,-121.780579],[49.301098,-121.780583]], diam:0.150, label:'P-44B (150mm)' },
+  { id:'L-29', pts:[[49.301011,-121.780648],[49.301011,-121.780579]], diam:0.150, label:'L-29 (150mm)' },
+  { id:'L-30', pts:[[49.299988,-121.780333],[49.300002,-121.780532]], diam:0.150, label:'L-30 (150mm)' },
+  { id:'L-31', pts:[[49.298763,-121.780930],[49.298605,-121.780835]], diam:0.150, label:'L-31 (150mm)' },
+  { id:'P-52A', pts:[[49.298628,-121.783141],[49.298643,-121.784070]], diam:0.150, label:'P-52A (150mm)' },
+  { id:'L-32', pts:[[49.298779,-121.783140],[49.298628,-121.783141]], diam:0.150, label:'L-32 (150mm)' },
+  { id:'L-33', pts:[[49.298776,-121.784706],[49.298644,-121.784903]], diam:0.150, label:'L-33 (150mm)' },
+  { id:'P-51A', pts:[[49.300243,-121.784739],[49.299448,-121.784382]], diam:0.200, label:'P-51A (200mm)' },
+  { id:'P-51B', pts:[[49.299448,-121.784382],[49.298643,-121.784070]], diam:0.200, label:'P-51B (200mm)' },
+  { id:'L-34', pts:[[49.299457,-121.784402],[49.299459,-121.784387]], diam:0.150, label:'L-34 (150mm)' },
+  { id:'L-35', pts:[[49.297868,-121.780688],[49.297826,-121.780797]], diam:0.150, label:'L-35 (150mm)' },
+  { id:'L-36', pts:[[49.297030,-121.780164],[49.297083,-121.780098]], diam:0.150, label:'L-36 (150mm)' },
+  { id:'L-37', pts:[[49.296740,-121.778853],[49.296825,-121.778787]], diam:0.150, label:'L-37 (150mm)' },
+  { id:'L-38', pts:[[49.295585,-121.777723],[49.295584,-121.777665]], diam:0.150, label:'L-38 (150mm)' },
+  { id:'L-39', pts:[[49.295441,-121.780245],[49.295589,-121.780236]], diam:0.150, label:'L-39 (150mm)' },
+  { id:'L-40', pts:[[49.295598,-121.782243],[49.295444,-121.782259]], diam:0.150, label:'L-40 (150mm)' },
+  { id:'L-41', pts:[[49.296317,-121.783347],[49.296317,-121.783150]], diam:0.150, label:'L-41 (150mm)' },
+  { id:'L-42', pts:[[49.296325,-121.781604],[49.296431,-121.781607]], diam:0.150, label:'L-42 (150mm)' },
+  { id:'L-43', pts:[[49.296354,-121.784507],[49.296376,-121.784507]], diam:0.150, label:'L-43 (150mm)' },
+  { id:'P-30A', pts:[[49.296368,-121.784275],[49.295759,-121.784140],[49.295586,-121.784094],[49.295378,-121.784009],[49.295106,-121.783828],[49.294984,-121.783677],[49.294889,-121.783580]], diam:0.250, label:'P-30A (250mm)' },
+  { id:'P-30B', pts:[[49.294889,-121.783580],[49.293860,-121.782125]], diam:0.250, label:'P-30B (250mm)' },
+  { id:'L-44', pts:[[49.294971,-121.783431],[49.294889,-121.783580]], diam:0.150, label:'L-44 (150mm)' },
+  { id:'L-45', pts:[[49.293882,-121.781889],[49.293832,-121.782086]], diam:0.150, label:'L-45 (150mm)' },
+  { id:'L-46', pts:[[49.292705,-121.780975],[49.292726,-121.780799]], diam:0.150, label:'L-46 (150mm)' },
+  { id:'E-18', pts:[[49.295432,-121.777664],[49.294174,-121.777652]], diam:0.200, label:'E-18 (200mm)' },
+  { id:'L-47', pts:[[49.294116,-121.777736],[49.294111,-121.777652]], diam:0.150, label:'L-47 (150mm)' },
+  { id:'E-19', pts:[[49.294111,-121.777652],[49.292884,-121.777648]], diam:0.200, label:'E-19 (200mm)' },
+  { id:'L-48', pts:[[49.292805,-121.777470],[49.292821,-121.777648]], diam:0.150, label:'L-48 (150mm)' },
+  { id:'P-33A', pts:[[49.291434,-121.780425],[49.291439,-121.780256]], diam:0.150, label:'P-33A (150mm)' },
+  { id:'P-33B', pts:[[49.291439,-121.780256],[49.291427,-121.779632]], diam:0.150, label:'P-33B (150mm)' },
+  { id:'L-49', pts:[[49.291539,-121.780275],[49.291439,-121.780256]], diam:0.150, label:'L-49 (150mm)' },
+  { id:'L-50', pts:[[49.291518,-121.777731],[49.291518,-121.777650]], diam:0.150, label:'L-50 (150mm)' },
+  { id:'L-51', pts:[[49.290779,-121.778317],[49.290743,-121.778535]], diam:0.150, label:'L-51 (150mm)' },
+  { id:'L-52', pts:[[49.290813,-121.777653],[49.290812,-121.777506]], diam:0.150, label:'L-52 (150mm)' },
+  { id:'P-39A', pts:[[49.290409,-121.780134],[49.290176,-121.780154]], diam:0.250, label:'P-39A (250mm)' },
+  { id:'P-39B', pts:[[49.290176,-121.780154],[49.289630,-121.780158],[49.289343,-121.780177]], diam:0.250, label:'P-39B (250mm)' },
+  { id:'L-54', pts:[[49.290180,-121.779985],[49.290176,-121.780154]], diam:0.150, label:'L-54 (150mm)' },
+  { id:'L-55', pts:[[49.289343,-121.780177],[49.289347,-121.780007]], diam:0.150, label:'L-55 (150mm)' },
+  { id:'E-21', pts:[[49.289343,-121.780177],[49.288744,-121.780193],[49.288519,-121.780185],[49.288282,-121.780257]], diam:0.250, label:'E-21 (250mm)' },
+  { id:'L-56', pts:[[49.288282,-121.780257],[49.288281,-121.780104]], diam:0.150, label:'L-56 (150mm)' },
+  { id:'E-22', pts:[[49.288181,-121.780280],[49.288155,-121.780286],[49.287866,-121.780465],[49.287617,-121.780599],[49.287310,-121.780711],[49.287099,-121.780724],[49.286674,-121.780745]], diam:0.250, label:'E-22 (250mm)' },
+  { id:'L-57', pts:[[49.286601,-121.780749],[49.286599,-121.780596]], diam:0.150, label:'L-57 (150mm)' },
+  { id:'E-23', pts:[[49.286601,-121.780749],[49.286190,-121.780778],[49.285798,-121.780813]], diam:0.250, label:'E-23 (250mm)' },
+  { id:'L-58', pts:[[49.285798,-121.780813],[49.285804,-121.780662]], diam:0.150, label:'L-58 (150mm)' },
+  { id:'E-24', pts:[[49.285798,-121.780813],[49.284773,-121.780950],[49.284652,-121.780958]], diam:0.250, label:'E-24 (250mm)' },
+  { id:'L-59', pts:[[49.284652,-121.780958],[49.284659,-121.780782]], diam:0.150, label:'L-59 (150mm)' },
+  { id:'E-25', pts:[[49.284652,-121.780958],[49.284434,-121.780996],[49.284143,-121.781112],[49.283342,-121.781738]], diam:0.250, label:'E-25 (250mm)' },
+  { id:'L-60', pts:[[49.283342,-121.781738],[49.283314,-121.781599]], diam:0.150, label:'L-60 (150mm)' },
+  { id:'E-26', pts:[[49.280460,-121.783098],[49.280459,-121.782811]], diam:0.200, label:'E-26 (200mm)' },
+  { id:'L-61', pts:[[49.280459,-121.782811],[49.280624,-121.782793]], diam:0.150, label:'L-61 (150mm)' },
+  { id:'E-27', pts:[[49.280459,-121.782811],[49.280455,-121.780697]], diam:0.200, label:'E-27 (200mm)' },
+  { id:'E-28', pts:[[49.280455,-121.780697],[49.280449,-121.777638]], diam:0.200, label:'E-28 (200mm)' },
+  { id:'L-62', pts:[[49.280455,-121.780697],[49.280574,-121.780680]], diam:0.150, label:'L-62 (150mm)' },
+  { id:'L-63', pts:[[49.286475,-121.778150],[49.286414,-121.778153]], diam:0.150, label:'L-63 (150mm)' },
+  { id:'E-30', pts:[[49.288105,-121.777579],[49.286409,-121.777639]], diam:0.200, label:'E-30 (200mm)' },
+  { id:'L-64', pts:[[49.288105,-121.777579],[49.288117,-121.777684]], diam:0.150, label:'L-64 (150mm)' },
+  { id:'E-32', pts:[[49.282354,-121.782501],[49.282298,-121.782543],[49.282093,-121.782702],[49.281838,-121.782863],[49.281548,-121.782995],[49.281296,-121.783055],[49.281063,-121.783084],[49.280826,-121.783100],[49.280460,-121.783098]], diam:0.250, label:'E-32 (250mm)' },
+  { id:'L-65', pts:[[49.282319,-121.782376],[49.282354,-121.782501]], diam:0.150, label:'L-65 (150mm)' },
+  { id:'P-70', pts:[[49.300330,-121.778717],[49.300809,-121.777480]], diam:0.150, label:'P-70 (150mm)' },
+  { id:'P-67', pts:[[49.302493,-121.781008],[49.302493,-121.779853]], diam:0.200, label:'P-67 (200mm)' },
+  { id:'P-66A', pts:[[49.302493,-121.779853],[49.303421,-121.779846]], diam:0.200, label:'P-66A (200mm)' },
+  { id:'P-68', pts:[[49.302493,-121.779853],[49.302492,-121.779001]], diam:0.200, label:'P-68 (200mm)' },
+  { id:'P-60A', pts:[[49.302335,-121.782877],[49.302495,-121.782897]], diam:0.150, label:'P-60A (150mm)' },
+  { id:'P-54A', pts:[[49.296368,-121.784275],[49.298273,-121.784746],[49.298645,-121.784902],[49.298644,-121.784903]], diam:0.350, label:'P-54A (350mm)' },
+  { id:'E-9', pts:[[49.298835,-121.778741],[49.299192,-121.778638],[49.299508,-121.777823]], diam:0.150, label:'E-9 (150mm)' },
+  { id:'P-75B', pts:[[49.299881,-121.776621],[49.299944,-121.776699]], diam:0.200, label:'P-75B (200mm)' },
+  { id:'P-75C', pts:[[49.299944,-121.776699],[49.300809,-121.777480]], diam:0.200, label:'P-75C (200mm)' },
+  { id:'E-10', pts:[[49.299508,-121.777823],[49.299944,-121.776699]], diam:0.150, label:'E-10 (150mm)' },
+  { id:'P-85', pts:[[49.296510,-121.777675],[49.296593,-121.777677],[49.296726,-121.777654],[49.296868,-121.777591],[49.296971,-121.777515],[49.297650,-121.776927],[49.297650,-121.776927]], diam:0.200, label:'P-85 (200mm)' },
+  { id:'P-52C', pts:[[49.298605,-121.780835],[49.298615,-121.781823]], diam:0.150, label:'P-52C (150mm)' },
+  { id:'P-52B', pts:[[49.298615,-121.781823],[49.298628,-121.783141]], diam:0.150, label:'P-52B (150mm)' },
+  { id:'E-11', pts:[[49.298615,-121.781823],[49.299005,-121.781804]], diam:0.150, label:'E-11 (150mm)' },
+  { id:'E-12', pts:[[49.299005,-121.781804],[49.299125,-121.781764]], diam:0.150, label:'E-12 (150mm)' },
+  { id:'E-13', pts:[[49.299125,-121.781764],[49.299924,-121.781534]], diam:0.150, label:'E-13 (150mm)' },
+  { id:'E-14', pts:[[49.299924,-121.781534],[49.299858,-121.782304]], diam:0.150, label:'E-14 (150mm)' },
+  { id:'E-15', pts:[[49.299586,-121.782238],[49.299858,-121.782304]], diam:0.150, label:'E-15 (150mm)' },
+  { id:'E-16', pts:[[49.299774,-121.783167],[49.299026,-121.782816]], diam:0.150, label:'E-16 (150mm)' },
+  { id:'E-17', pts:[[49.299026,-121.782816],[49.299005,-121.781804]], diam:0.150, label:'E-17 (150mm)' },
+  { id:'L-66', pts:[[49.299098,-121.782741],[49.299026,-121.782816]], diam:0.150, label:'L-66 (150mm)' },
+  { id:'L-67', pts:[[49.299125,-121.781764],[49.299119,-121.781653]], diam:0.150, label:'L-67 (150mm)' },
+  { id:'L-68', pts:[[49.299951,-121.782315],[49.299858,-121.782304]], diam:0.150, label:'L-68 (150mm)' },
+  { id:'E-4', pts:[[49.302490,-121.783045],[49.302496,-121.784130]], diam:0.150, label:'E-4 (150mm)' },
+  { id:'L-3', pts:[[49.302496,-121.784130],[49.302603,-121.784140]], diam:0.150, label:'L-3 (150mm)' },
+  { id:'E-3', pts:[[49.302496,-121.784130],[49.302493,-121.785152]], diam:0.150, label:'E-3 (150mm)' },
+  { id:'L-2', pts:[[49.302493,-121.785152],[49.302610,-121.785169]], diam:0.150, label:'L-2 (150mm)' },
+  { id:'E-2', pts:[[49.302619,-121.786665],[49.302497,-121.785713],[49.302496,-121.785391],[49.302495,-121.785308]], diam:0.250, label:'E-2 (250mm)' },
+  { id:'E-33', pts:[[49.290813,-121.777653],[49.290385,-121.777612]], diam:0.200, label:'E-33 (200mm)' },
+  { id:'E-5', pts:[[49.302490,-121.783045],[49.302495,-121.782897]], diam:0.150, label:'E-5 (150mm)' },
+  { id:'P-61', pts:[[49.302495,-121.782897],[49.302493,-121.781008]], diam:0.200, label:'P-61 (200mm)' },
+  { id:'P-270', pts:[[49.290146,-121.777689],[49.290144,-121.777610]], diam:0.150, label:'P-270 (150mm)' },
+  { id:'P-586', pts:[[49.297865,-121.777791],[49.298039,-121.778632],[49.298157,-121.778759]], diam:0.150, label:'P-586 (150mm)' },
+  { id:'P-587', pts:[[49.298157,-121.778759],[49.298293,-121.778912],[49.298835,-121.778741]], diam:0.150, label:'P-587 (150mm)' },
+  { id:'P-589', pts:[[49.290144,-121.777610],[49.289160,-121.777599]], diam:0.200, label:'P-589 (200mm)' },
+  { id:'P-590', pts:[[49.289160,-121.777599],[49.288105,-121.777579]], diam:0.200, label:'P-590 (200mm)' },
+  { id:'P-593', pts:[[49.295432,-121.777664],[49.295437,-121.779018]], diam:0.150, label:'P-593 (150mm)' },
+  { id:'P-594', pts:[[49.295437,-121.779018],[49.295441,-121.780245]], diam:0.150, label:'P-594 (150mm)' },
+  { id:'P-612', pts:[[49.292821,-121.777648],[49.292099,-121.777651]], diam:0.200, label:'P-612 (200mm)' },
+  { id:'P-613', pts:[[49.292099,-121.777651],[49.291518,-121.777650]], diam:0.200, label:'P-613 (200mm)' },
+  { id:'P-614', pts:[[49.292705,-121.780975],[49.292067,-121.780683]], diam:0.250, label:'P-614 (250mm)' },
+  { id:'P-615', pts:[[49.292067,-121.780683],[49.291434,-121.780425]], diam:0.250, label:'P-615 (250mm)' },
+  { id:'P-623', pts:[[49.283342,-121.781738],[49.283115,-121.781914]], diam:0.250, label:'P-623 (250mm)' },
+  { id:'P-625', pts:[[49.283115,-121.781914],[49.282847,-121.782121]], diam:0.250, label:'P-625 (250mm)' },
+  { id:'P-626', pts:[[49.282847,-121.782121],[49.282354,-121.782501]], diam:0.250, label:'P-626 (250mm)' },
+  { id:'P-1', pts:[[49.312719,-121.786476],[49.303870,-121.785332]], diam:0.350, label:'P-1 (350mm)' },
+  { id:'P-49', pts:[[49.300798,-121.782048],[49.300381,-121.784097]], diam:0.150, label:'P-49 (150mm)' },
+  { id:'UNK', pts:[[49.299774,-121.783167],[49.299858,-121.782304]], diam:0.150, label:'UNK (150mm)' },
+  { id:'E-2', pts:[[49.302495,-121.785308],[49.302493,-121.785159],[49.302493,-121.785152]], diam:0.150, label:'E-2 (150mm)' },
+  { id:'E-22', pts:[[49.288282,-121.780257],[49.288181,-121.780280]], diam:0.250, label:'E-22 (250mm)' },
+  { id:'UNK', pts:[[49.288181,-121.780280],[49.288184,-121.778825]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.288184,-121.778825],[49.289038,-121.778833]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.288184,-121.778825],[49.288187,-121.777581]], diam:0.150, label:'UNK (150mm)' },
+  { id:'E-22', pts:[[49.286674,-121.780745],[49.286601,-121.780749]], diam:0.250, label:'E-22 (250mm)' },
+  { id:'UNK', pts:[[49.286674,-121.780745],[49.286680,-121.779990],[49.286725,-121.779942],[49.286927,-121.779925]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.286927,-121.779925],[49.287303,-121.779901],[49.287390,-121.779836],[49.287395,-121.779468]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.286922,-121.778254],[49.287325,-121.778260]], diam:0.100, label:'UNK (100mm)' },
+  { id:'UNK', pts:[[49.286927,-121.779925],[49.286924,-121.779410]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.286924,-121.779410],[49.286922,-121.778254]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.286922,-121.778254],[49.286414,-121.778216]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.286924,-121.779410],[49.286527,-121.779408]], diam:0.100, label:'UNK (100mm)' },
+  { id:'UNK', pts:[[49.286414,-121.778216],[49.286170,-121.778210],[49.285891,-121.778264],[49.285659,-121.778325],[49.285540,-121.778400],[49.285277,-121.778590],[49.285131,-121.778742],[49.285015,-121.778978],[49.284956,-121.779149],[49.284916,-121.779377]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.285600,-121.779014],[49.285443,-121.779206],[49.285129,-121.779358],[49.284916,-121.779377]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.284571,-121.779407],[49.284571,-121.779407],[49.284182,-121.779441]], diam:0.100, label:'UNK (100mm)' },
+  { id:'UNK', pts:[[49.293860,-121.782125],[49.293832,-121.782086]], diam:0.250, label:'UNK (250mm)' },
+  { id:'UNK', pts:[[49.293860,-121.782125],[49.294169,-121.781595],[49.294173,-121.778618]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.294173,-121.778618],[49.294174,-121.777652]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.294173,-121.778618],[49.294703,-121.778624]], diam:0.100, label:'UNK (100mm)' },
+  { id:'P-73', pts:[[49.286414,-121.778153],[49.286414,-121.778216]], diam:0.200, label:'P-73 (200mm)' },
+  { id:'UNK', pts:[[49.289038,-121.778833],[49.289038,-121.778945]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.287395,-121.779468],[49.287432,-121.779470]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.287395,-121.779468],[49.287398,-121.779305],[49.287426,-121.779192]], diam:0.100, label:'UNK (100mm)' },
+  { id:'UNK', pts:[[49.286527,-121.779408],[49.286527,-121.779343]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.286527,-121.779408],[49.286306,-121.779407]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.284571,-121.779407],[49.284577,-121.779507]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.284916,-121.779377],[49.284633,-121.779402],[49.284571,-121.779407]], diam:0.150, label:'UNK (150mm)' },
+  { id:'E-19', pts:[[49.292884,-121.777648],[49.292821,-121.777648]], diam:0.200, label:'E-19 (200mm)' },
+  { id:'UNK', pts:[[49.292898,-121.779136],[49.292917,-121.781086]], diam:0.200, label:'UNK (200mm)' },
+  { id:'P-31', pts:[[49.292917,-121.781086],[49.292705,-121.780975]], diam:0.250, label:'P-31 (250mm)' },
+  { id:'UNK', pts:[[49.292884,-121.777648],[49.292898,-121.779136]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.292898,-121.779136],[49.292967,-121.779139]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.296527,-121.784231],[49.296515,-121.784506],[49.296455,-121.784502],[49.296428,-121.784481],[49.296385,-121.784480],[49.296376,-121.784507]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.296337,-121.784712],[49.296119,-121.785053],[49.296096,-121.785137],[49.296146,-121.785284],[49.296569,-121.785746],[49.296486,-121.785979],[49.296011,-121.785676],[49.295630,-121.785523],[49.295543,-121.785444]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.295543,-121.785444],[49.295430,-121.785473],[49.295265,-121.785912],[49.295311,-121.786073]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.295311,-121.786073],[49.295378,-121.786307]], diam:0.200, label:'UNK (200mm)' },
+  { id:'UNK', pts:[[49.295359,-121.786310],[49.295293,-121.786087]], diam:0.300, label:'UNK (300mm)' },
+  { id:'UNK', pts:[[49.295293,-121.786087],[49.295248,-121.785911],[49.295417,-121.785455],[49.295548,-121.785425]], diam:0.300, label:'UNK (300mm)' },
+  { id:'UNK', pts:[[49.295548,-121.785425],[49.295638,-121.785503],[49.296015,-121.785641],[49.296472,-121.785935],[49.296536,-121.785756],[49.296077,-121.785234]], diam:0.300, label:'UNK (300mm)' },
+  { id:'UNK', pts:[[49.296077,-121.785234],[49.296406,-121.784695],[49.296415,-121.784561],[49.296420,-121.784495]], diam:0.300, label:'UNK (300mm)' },
+  { id:'P-19', pts:[[49.296420,-121.784495],[49.296364,-121.784482],[49.296368,-121.784275]], diam:0.300, label:'P-19 (300mm)' },
+  { id:'UNK', pts:[[49.296376,-121.784507],[49.296372,-121.784708],[49.296337,-121.784712]], diam:0.200, label:'UNK (200mm)' },
+  { id:'P-20', pts:[[49.296431,-121.781607],[49.296431,-121.781490]], diam:0.200, label:'P-20 (200mm)' },
+  { id:'P-613', pts:[[49.291518,-121.777650],[49.291406,-121.777650]], diam:0.200, label:'P-613 (200mm)' },
+  { id:'P-26', pts:[[49.295583,-121.777665],[49.295432,-121.777664]], diam:0.150, label:'P-26 (150mm)' },
+  { id:'P-589', pts:[[49.290385,-121.777612],[49.290144,-121.777610]], diam:0.200, label:'P-589 (200mm)' },
+  { id:'P-2', pts:[[49.303870,-121.785332],[49.303874,-121.785307],[49.303842,-121.785297],[49.303838,-121.785328]], diam:0.150, label:'P-2 (150mm)' },
+  { id:'P-2', pts:[[49.303838,-121.785328],[49.303836,-121.785338],[49.303868,-121.785349],[49.303870,-121.785332]], diam:0.150, label:'P-2 (150mm)' },
+  { id:'UNK', pts:[[49.285227,-121.779424],[49.285205,-121.779321]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.294217,-121.780231],[49.294171,-121.780231]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.294221,-121.778396],[49.294174,-121.778395]], diam:0.150, label:'UNK (150mm)' },
+  { id:'UNK', pts:[[49.286977,-121.778362],[49.286923,-121.778362]], diam:0.150, label:'UNK (150mm)' },
+  { id:'P-71A', pts:[[49.300809,-121.777480],[49.300885,-121.777275]], diam:0.150, label:'P-71A (150mm)' },
+  { id:'E-18', pts:[[49.294174,-121.777652],[49.294111,-121.777652]], diam:0.200, label:'E-18 (200mm)' },
+  { id:'UNK', pts:[[49.289038,-121.778833],[49.289688,-121.778838]], diam:0.100, label:'UNK (100mm)' },
+];
+
+const reservoir = { lat:49.29542, lng:-121.78637, capacity:'New Reservoir (FVRD)' };
+
+function generateHydrants(mains) {
+  const hydrants = [];
+  mains.forEach(m => {
+    for (let i = 1; i < m.pts.length; i++) {
+      const d = haversine(m.pts[i-1], m.pts[i]);
+      const segs = Math.floor(d / 120);
+      for (let s = 1; s <= segs; s++) {
+        const f = s / (segs + 1);
+        const lat = m.pts[i-1][0] + f * (m.pts[i][0] - m.pts[i-1][0]);
+        const lng = m.pts[i-1][1] + f * (m.pts[i][1] - m.pts[i-1][1]);
+        hydrants.push([lat, lng]);
+      }
+    }
+    m.pts.forEach(p => hydrants.push(p));
+  });
+  const unique = [];
+  hydrants.forEach(h => {
+    if (!unique.some(u => haversine(u, h) < 60)) unique.push(h);
+  });
+  return unique;
+}
+
+function haversine(a, b) {
+  const R = 6371000;
+  const dLat = (b[0]-a[0]) * Math.PI/180;
+  const dLon = (b[1]-a[1]) * Math.PI/180;
+  const lat1 = a[0]*Math.PI/180, lat2 = b[0]*Math.PI/180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+// ===================== BUILDINGS (OSM data - 525 structures) =====================
+const buildings = [];
+(function loadBuildings() {
+  const raw = [
+    [49.303848,-121.791045],[49.303901,-121.790407],[49.303528,-121.789742],[49.303817,-121.789653],
+    [49.303582,-121.788875],[49.303463,-121.789294],[49.303079,-121.790272],[49.303078,-121.789388],
+    [49.303108,-121.789775],[49.303253,-121.789916],[49.303200,-121.788321],[49.302435,-121.789458],
+    [49.302768,-121.785593],[49.303058,-121.784457],[49.302942,-121.784838],[49.302767,-121.786159],
+    [49.302299,-121.786733],[49.305695,-121.773104],[49.302629,-121.789592],[49.302785,-121.789465],
+    [49.302838,-121.789706],[49.302708,-121.789784],[49.302459,-121.789638],[49.302577,-121.789864],
+    [49.303236,-121.786417],[49.302252,-121.785659],[49.303578,-121.785206],[49.303498,-121.785130],
+    [49.302951,-121.783927],[49.302840,-121.783651],[49.302858,-121.783235],[49.302628,-121.785578],
+    [49.302877,-121.785882],[49.303220,-121.785540],[49.303228,-121.785794],[49.303241,-121.785997],
+    [49.303094,-121.785973],[49.303387,-121.786782],[49.303466,-121.786914],[49.303410,-121.787008],
+    [49.303047,-121.787173],[49.302940,-121.787321],[49.303392,-121.787193],[49.303000,-121.782141],
+    [49.302859,-121.782128],[49.304748,-121.789043],[49.304810,-121.789139],[49.304830,-121.789056],
+    [49.302855,-121.780726],[49.302848,-121.779323],[49.302938,-121.778954],[49.302699,-121.778688],
+    [49.302996,-121.778690],[49.302974,-121.778562],[49.302803,-121.778360],[49.302653,-121.778089],
+    [49.302932,-121.777932],[49.302946,-121.777828],[49.302043,-121.785524],[49.301594,-121.784468],
+    [49.301372,-121.784564],[49.301279,-121.785765],[49.301247,-121.785932],[49.301688,-121.785634],
+    [49.301608,-121.785814],[49.302435,-121.787066],[49.302403,-121.787183],[49.302420,-121.787379],
+    [49.302316,-121.787327],[49.302413,-121.787606],[49.302161,-121.784949],[49.301949,-121.784936],
+    [49.302312,-121.785079],[49.303105,-121.776412],[49.303528,-121.777057],[49.302913,-121.776242],
+    [49.302687,-121.776508],[49.298885,-121.784564],[49.298302,-121.783986],[49.298479,-121.783799],
+    [49.303790,-121.784927],[49.298926,-121.784266],[49.299191,-121.784596],[49.299287,-121.784366],
+    [49.298905,-121.783839],[49.298960,-121.783605],[49.299967,-121.785094],[49.305960,-121.772959],
+    [49.307114,-121.773137],[49.302740,-121.790761],[49.302675,-121.790559],[49.302659,-121.790383],
+    [49.302610,-121.790242],[49.302508,-121.790099],[49.302301,-121.789670],[49.303038,-121.783497],
+    [49.303706,-121.790543],[49.280741,-121.782570],[49.302261,-121.776189],[49.302017,-121.784981],
+    [49.302152,-121.784360],[49.298039,-121.785049],[49.297809,-121.785111],[49.297576,-121.785074],
+    [49.297338,-121.785015],[49.297100,-121.784947],[49.296901,-121.784814],[49.296688,-121.784697],
+    [49.293633,-121.782128],[49.294395,-121.783210],[49.294558,-121.783468],[49.294190,-121.782964],
+    [49.282610,-121.781216],[49.297062,-121.783895],[49.299138,-121.771637],[49.300118,-121.771699],
+    [49.300930,-121.789964],[49.300956,-121.790083],[49.295898,-121.777862],[49.295413,-121.786352],
+    [49.288440,-121.779813],[49.302244,-121.778398],[49.302126,-121.778316],[49.302232,-121.778110],
+    [49.302238,-121.777648],[49.301990,-121.777081],[49.301893,-121.777370],[49.301673,-121.777874],
+    [49.301556,-121.777643],[49.301438,-121.777568],[49.301222,-121.777386],[49.301095,-121.777277],
+    [49.301153,-121.777161],[49.301329,-121.777161],[49.301215,-121.777015],[49.301301,-121.776854],
+    [49.301493,-121.776727],[49.301677,-121.776977],[49.302127,-121.776448],[49.301969,-121.779156],
+    [49.301967,-121.779041],[49.302018,-121.779087],[49.302113,-121.779055],[49.302111,-121.778922],
+    [49.301846,-121.778821],[49.301990,-121.778812],[49.301850,-121.778612],[49.301519,-121.778390],
+    [49.301361,-121.778246],[49.301125,-121.778155],[49.301071,-121.778287],[49.301037,-121.778371],
+    [49.301006,-121.778456],[49.300984,-121.778533],[49.301039,-121.777963],[49.301739,-121.778715],
+    [49.299861,-121.777587],[49.299978,-121.777228],[49.302248,-121.775743],[49.300621,-121.784966],
+    [49.300523,-121.784620],[49.300574,-121.784433],[49.300911,-121.782824],[49.300953,-121.782479],
+    [49.301021,-121.780120],[49.300882,-121.780145],[49.301388,-121.780141],[49.301537,-121.780237],
+    [49.301662,-121.780368],[49.301780,-121.780984],[49.301719,-121.781502],[49.300481,-121.782416],
+    [49.300521,-121.782188],[49.296412,-121.784406],[49.296448,-121.784513],[49.296489,-121.784637],
+    [49.293939,-121.781439],[49.293682,-121.781266],[49.293477,-121.780966],[49.293370,-121.780540],
+    [49.293363,-121.780102],[49.293650,-121.780332],[49.293949,-121.781035],[49.293965,-121.780742],
+    [49.293763,-121.780732],[49.293906,-121.780328],[49.291288,-121.779849],[49.291151,-121.779845],
+    [49.291016,-121.779844],[49.290865,-121.779822],[49.290695,-121.779806],[49.290658,-121.779454],
+    [49.290655,-121.779197],[49.290652,-121.778944],[49.290650,-121.778692],[49.290943,-121.779375],
+    [49.290940,-121.779126],[49.290937,-121.778861],[49.290935,-121.778596],[49.290933,-121.778330],
+    [49.290331,-121.779724],[49.289887,-121.779736],[49.289801,-121.779280],[49.289792,-121.778480],
+    [49.289836,-121.777951],[49.290038,-121.778313],[49.290047,-121.778854],[49.290159,-121.779349],
+    [49.290338,-121.778833],[49.290280,-121.778321],[49.290346,-121.777934],[49.289580,-121.779630],
+    [49.289469,-121.779639],[49.289369,-121.779632],[49.289254,-121.779631],[49.289149,-121.779637],
+    [49.289048,-121.779637],[49.288935,-121.779640],[49.288832,-121.779637],[49.288723,-121.779640],
+    [49.288623,-121.779639],[49.289565,-121.781730],[49.289567,-121.781606],[49.289569,-121.781482],
+    [49.289570,-121.781355],[49.289572,-121.781231],[49.289571,-121.781106],[49.289572,-121.780976],
+    [49.289567,-121.780842],[49.289574,-121.780716],[49.289576,-121.780592],[49.289574,-121.780471],
+    [49.289382,-121.781314],[49.289303,-121.781283],[49.289224,-121.781255],[49.289135,-121.781218],
+    [49.289043,-121.781150],[49.289003,-121.780929],[49.289009,-121.780668],[49.289007,-121.780797],
+    [49.289384,-121.780695],[49.289297,-121.780378],[49.289296,-121.780687],[49.289217,-121.780686],
+    [49.289138,-121.780679],[49.285378,-121.778821],[49.292431,-121.780024],[49.292430,-121.779718],
+    [49.292425,-121.779410],[49.292420,-121.779107],[49.292417,-121.778810],[49.292414,-121.778508],
+    [49.292413,-121.778205],[49.292408,-121.777901],[49.292430,-121.780342],[49.292069,-121.779723],
+    [49.292067,-121.779419],[49.292074,-121.779122],[49.292072,-121.778818],[49.292070,-121.778510],
+    [49.292064,-121.778209],[49.292060,-121.777914],[49.292093,-121.780099],[49.293134,-121.780824],
+    [49.293146,-121.780607],[49.293121,-121.780421],[49.293122,-121.780245],[49.293108,-121.780069],
+    [49.293105,-121.779884],[49.293103,-121.779730],[49.293097,-121.779378],[49.293099,-121.779033],
+    [49.293092,-121.778857],[49.293096,-121.778689],[49.293097,-121.778525],[49.293096,-121.778349],
+    [49.293086,-121.778179],[49.293088,-121.778011],[49.293087,-121.777837],[49.292681,-121.780404],
+    [49.292694,-121.780234],[49.292689,-121.780062],[49.292689,-121.779883],[49.292691,-121.779371],
+    [49.292690,-121.779210],[49.292695,-121.778863],[49.292687,-121.778683],[49.292689,-121.778508],
+    [49.292684,-121.778340],[49.292680,-121.778170],[49.292673,-121.778005],[49.292684,-121.777846],
+    [49.292676,-121.780588],[49.284543,-121.780553],[49.284616,-121.780279],[49.284868,-121.780427],
+    [49.284758,-121.780212],[49.285025,-121.779758],[49.284982,-121.779821],[49.284569,-121.779701],
+    [49.284265,-121.779912],[49.284222,-121.779907],[49.284284,-121.779762],[49.284538,-121.779249],
+    [49.284799,-121.779071],[49.285092,-121.778431],[49.285716,-121.778005],[49.285948,-121.777917],
+    [49.286179,-121.777918],[49.286097,-121.777766],[49.280727,-121.782298],[49.280826,-121.782002],
+    [49.280755,-121.781190],[49.280723,-121.780904],[49.280068,-121.772829],[49.280104,-121.772203],
+    [49.280683,-121.783774],[49.280645,-121.783523],[49.281040,-121.784068],[49.282217,-121.782960],
+    [49.282415,-121.782843],[49.282558,-121.783090],[49.282617,-121.782802],[49.281847,-121.783115],
+    [49.283614,-121.781897],[49.283523,-121.782279],[49.283942,-121.781628],[49.283870,-121.781991],
+    [49.284048,-121.781970],[49.284175,-121.781728],[49.284342,-121.781452],[49.284270,-121.781670],
+    [49.284273,-121.781736],[49.284530,-121.781920],[49.284663,-121.781545],[49.284620,-121.781418],
+    [49.285308,-121.781324],[49.285145,-121.781293],[49.285114,-121.781569],[49.285168,-121.781529],
+    [49.285695,-121.781360],[49.285751,-121.781124],[49.285791,-121.781272],[49.285900,-121.781194],
+    [49.286081,-121.781181],[49.286368,-121.781115],[49.286474,-121.781397],[49.286551,-121.781127],
+    [49.286742,-121.781131],[49.286749,-121.781324],[49.286886,-121.781142],[49.287249,-121.781307],
+    [49.287322,-121.781521],[49.287341,-121.781076],[49.287589,-121.781011],[49.287963,-121.780200],
+    [49.285306,-121.780432],[49.286841,-121.780236],[49.287237,-121.780212],[49.286713,-121.779656],
+    [49.286633,-121.779829],[49.286666,-121.779527],[49.285389,-121.779573],[49.285379,-121.779768],
+    [49.285715,-121.779631],[49.285866,-121.779870],[49.285142,-121.779635],[49.285744,-121.779351],
+    [49.285824,-121.779092],[49.285576,-121.778679],[49.285806,-121.778600],[49.286022,-121.778492],
+    [49.286173,-121.778715],[49.286256,-121.778494],[49.286225,-121.778615],[49.293341,-121.777308],
+    [49.293288,-121.777371],[49.286041,-121.779603],[49.286133,-121.779252],[49.286335,-121.779058],
+    [49.286171,-121.778854],[49.286418,-121.779731],[49.286492,-121.780346],[49.286402,-121.780254],
+    [49.286422,-121.780052],[49.285677,-121.780420],[49.286548,-121.779091],[49.286604,-121.778845],
+    [49.286744,-121.779116],[49.286788,-121.778840],[49.286826,-121.778837],[49.286503,-121.778510],
+    [49.286594,-121.778749],[49.286727,-121.778553],[49.286772,-121.778750],[49.286826,-121.778743],
+    [49.287041,-121.780202],[49.287323,-121.780242],[49.287448,-121.780146],[49.287605,-121.779965],
+    [49.287581,-121.779638],[49.287543,-121.779512],[49.287601,-121.779320],[49.287598,-121.778985],
+    [49.287177,-121.779280],[49.287136,-121.779429],[49.287009,-121.779277],[49.287226,-121.779598],
+    [49.287116,-121.779628],[49.287099,-121.779003],[49.287263,-121.778791],[49.287111,-121.778545],
+    [49.287288,-121.778555],[49.287545,-121.778591],[49.287578,-121.778263],[49.287568,-121.777983],
+    [49.287360,-121.777908],[49.287255,-121.777790],[49.287085,-121.777932],[49.287957,-121.779849],
+    [49.287926,-121.779658],[49.287922,-121.779216],[49.287953,-121.779135],[49.287957,-121.778921],
+    [49.287843,-121.778905],[49.287835,-121.778735],[49.287948,-121.778557],[49.287989,-121.778175],
+    [49.287987,-121.777866],[49.287837,-121.777984],[49.288404,-121.777874],[49.288421,-121.778185],
+    [49.288416,-121.778515],[49.288420,-121.779442],[49.288387,-121.779146],[49.288432,-121.779271],
+    [49.288512,-121.779194],[49.288714,-121.779227],[49.288653,-121.779388],[49.288677,-121.778483],
+    [49.288551,-121.778328],[49.288863,-121.778469],[49.288928,-121.779175],[49.288683,-121.777912],
+    [49.288752,-121.777962],[49.288976,-121.778154],[49.288900,-121.777923],[49.289087,-121.777869],
+    [49.289177,-121.778040],[49.289172,-121.778160],[49.289389,-121.778295],[49.289275,-121.778479],
+    [49.289284,-121.778042],[49.289482,-121.777914],[49.289567,-121.778093],[49.289626,-121.778149],
+    [49.289619,-121.778226],[49.289506,-121.778395],[49.289451,-121.778275],[49.289274,-121.779357],
+    [49.289373,-121.779202],[49.289393,-121.779060],[49.289472,-121.779350],[49.289597,-121.779222],
+    [49.291727,-121.779840],[49.291686,-121.779615],[49.291894,-121.779337],[49.291700,-121.779148],
+    [49.291803,-121.778191],[49.291718,-121.778341],[49.291642,-121.777943],[49.291726,-121.778813],
+    [49.291224,-121.779352],[49.290739,-121.777984],[49.290638,-121.777904],[49.290917,-121.777912],
+    [49.291222,-121.777909],[49.291198,-121.778344],[49.292481,-121.781675],[49.292637,-121.782000],
+    [49.294986,-121.784117],[49.294409,-121.785301],[49.289319,-121.780984],[49.288978,-121.781109],
+    [49.296187,-121.783803],[49.296174,-121.783548],[49.295928,-121.783623],[49.295769,-121.783586],
+    [49.295591,-121.783564],[49.295646,-121.783675],[49.295670,-121.783837],[49.295406,-121.783403],
+    [49.295258,-121.783187],[49.294985,-121.782645],[49.295009,-121.782405],[49.294795,-121.782817],
+    [49.294762,-121.782646],[49.294972,-121.783077],[49.294636,-121.782493],[49.294417,-121.781767],
+    [49.294650,-121.781596],[49.294762,-121.781599],[49.294819,-121.781774],[49.294953,-121.782046],
+    [49.297256,-121.779824],[49.297148,-121.779572],[49.296845,-121.777824],[49.296811,-121.778101],
+    [49.298493,-121.780474],[49.298843,-121.780390],[49.298777,-121.780179],[49.298822,-121.779015],
+    [49.298496,-121.779213],[49.298255,-121.778128],[49.298492,-121.777446],[49.298438,-121.777894],
+    [49.298704,-121.777607],[49.298575,-121.778048],[49.298565,-121.778384],[49.303420,-121.782891],
+    [49.303421,-121.785141],[49.299117,-121.784596],[49.298479,-121.783671],[49.298318,-121.783654],
+    [49.298218,-121.783756],
+  ];
+  raw.forEach(function(p, i) { buildings.push({ lat: p[0], lng: p[1], id: i }); });
+})();
+
+// ===================== LAYER GROUPS =====================
+const layers = {
+  pipes: L.layerGroup().addTo(map),
+  hydrants: L.layerGroup().addTo(map),
+  buildings: L.layerGroup().addTo(map),
+  coverage: L.layerGroup().addTo(map),
+  towers: L.layerGroup().addTo(map),
+  simSpray: L.layerGroup().addTo(map),
+  fire: L.layerGroup().addTo(map),
+};
+
+const pipePolylines = [];
+waterMains.forEach(m => {
+  const color = m.diam >= 0.20 ? '#1a75ff' : '#4da6ff';
+  const weight = m.diam >= 0.20 ? 4 : 2.5;
+  const pl = L.polyline(m.pts, { color, weight, opacity:0.8 })
+    .bindTooltip(m.label + '<br>&Oslash;' + (m.diam*1000).toFixed(0) + 'mm', { className:'pipe-tooltip' });
+  pl._pipeData = m;
+  pl._origColor = color;
+  pl._origWeight = weight;
+  pipePolylines.push(pl);
+  layers.pipes.addLayer(pl);
+});
+
+// Real hydrant positions from FVRD ArcGIS Layer 81
+const hydrantPositions = [
+  [49.280570,-121.780680],[49.288120,-121.777680],[49.288280,-121.780100],[49.286600,-121.780600],
+  [49.287430,-121.779470],[49.286980,-121.778360],[49.286530,-121.779340],[49.285230,-121.779420],
+  [49.284580,-121.779510],[49.285260,-121.778580],[49.286470,-121.778150],[49.289040,-121.778940],
+  [49.290150,-121.777690],[49.290810,-121.777510],[49.291520,-121.777730],[49.291540,-121.780270],
+  [49.293880,-121.781890],[49.294220,-121.780230],[49.294220,-121.778400],[49.294120,-121.777740],
+  [49.295590,-121.777720],[49.295590,-121.780240],[49.295600,-121.782240],[49.296320,-121.783150],
+  [49.297030,-121.780160],[49.298760,-121.780930],[49.299990,-121.780330],[49.301010,-121.780650],
+  [49.300880,-121.782030],[49.298780,-121.783140],[49.300950,-121.777320],[49.302520,-121.773290],
+  [49.300540,-121.772580],[49.298790,-121.774520],[49.298380,-121.776400],[49.297860,-121.777790],
+  [49.298810,-121.778580],[49.299860,-121.776690],[49.299120,-121.776120],[49.302350,-121.778900],
+  [49.303070,-121.779930],[49.304070,-121.789190],[49.303710,-121.788590],
+];
+hydrantPositions.forEach(h => {
+  L.circleMarker(h, { radius:4, color:'#e74c3c', fillColor:'#e74c3c', fillOpacity:0.8, weight:1 })
+    .bindTooltip('Fire Hydrant').addTo(layers.hydrants);
+});
+
+const buildingRects = [];
+buildings.forEach(b => {
+  const rect = L.rectangle(
+    [[b.lat - 0.00006, b.lng - 0.00008], [b.lat + 0.00006, b.lng + 0.00008]],
+    { color:'#888', fillColor:'#aaa', fillOpacity:0.5, weight:1 }
+  ).bindTooltip('Structure');
+  rect._buildingData = b;
+  rect._protectionState = 'unprotected';
+  buildingRects.push(rect);
+  layers.buildings.addLayer(rect);
+});
+
+const resIcon = L.divIcon({ html:'<div style="font-size:20px;">&#x1f4a7;</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' });
+L.marker([reservoir.lat, reservoir.lng], { icon: resIcon })
+  .bindPopup('<b>Water Reservoir</b><br>' + reservoir.capacity + '<br>FVRD Water System').addTo(map);
+
+const townBoundary = L.polygon([
+  [49.3045,-121.7920],[49.3045,-121.7700],[49.2800,-121.7700],[49.2800,-121.7920]
+], { color:'#FF6B35', fill:false, weight:2, dashArray:'8,6', opacity:0.6 }).addTo(map);
+
+const TOWN_AREA_HA = 45.0;
+
+// ===================== V8: EVACUATION MODE =====================
+let evacuationMode = true; // default ON
+
+function getHydraulicSlope() {
+  return evacuationMode ? 0.01 : 0.005;
+}
+
+function toggleEvacuationMode() {
+  evacuationMode = !evacuationMode;
+  const btn = document.getElementById('btn-evac');
+  if (evacuationMode) {
+    btn.textContent = '\u{1f6a8} Evacuation Mode: ON';
+    btn.className = 'btn btn-evac active';
+  } else {
+    btn.textContent = '\u{1f6a8} Evacuation Mode: OFF';
+    btn.className = 'btn btn-outline';
+    btn.style.color = '#aaa';
+  }
+  // Recalculate zone supplies if zones exist
+  if (simZoneState && simZoneState.length > 0) {
+    recalcZoneSupply();
+  }
+  updateStats();
+}
+
+// ===================== TOWER MANAGEMENT =====================
+let towers = [];
+let placeMode = false;
+let ignitionMode = false;
+let simulated = false;
+
+function makeTowerIcon(label, color, cisternPct) {
+  const bg = color || '#FF6B35';
+  const cPct = cisternPct != null ? cisternPct : -1;
+  const cisternColor = cPct > 60 ? '#3498db' : cPct > 30 ? '#f1c40f' : '#e74c3c';
+  const cisternBar = cPct >= 0 ? '<div style="width:32px;height:5px;background:rgba(0,0,0,0.6);border-radius:3px;margin-top:2px;border:1px solid rgba(255,255,255,0.3);"><div style="width:' + cPct + '%;height:100%;background:' + cisternColor + ';border-radius:2px;"></div></div>' : '';
+  return L.divIcon({
+    html: '<div style="text-align:center;"><div style="width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%, ' + bg + ', ' + bg + 'aa);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:bold;">&#x1f5fc;</div>' + cisternBar + '</div>',
+    iconSize: [28, 38], iconAnchor: [14, 14], className: ''
+  });
+}
+
+const defaultTowerIcon = makeTowerIcon(null, '#FF6B35', -1);
+
+function togglePlaceMode() {
+  if (ignitionMode) toggleIgnitionMode();
+  placeMode = !placeMode;
+  const btn = document.getElementById('btn-place');
+  const tip = document.getElementById('map-tooltip');
+  if (placeMode) {
+    btn.classList.add('active');
+    btn.textContent = '\u{1f5fc} PLACING -- Click Map';
+    tip.textContent = 'Click map to place tower';
+    tip.classList.remove('hidden');
+    map.getContainer().style.cursor = 'crosshair';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '\u{1f5fc} Place Tower Mode';
+    tip.classList.add('hidden');
+    map.getContainer().style.cursor = '';
+  }
+}
+
+function toggleIgnitionMode() {
+  if (placeMode) togglePlaceMode();
+  ignitionMode = !ignitionMode;
+  const btn = document.getElementById('btn-ignition');
+  const tip = document.getElementById('map-tooltip');
+  if (ignitionMode) {
+    btn.classList.add('active');
+    btn.textContent = '\u{1f525} CLICK MAP to set fire';
+    tip.textContent = 'Click map to set ignition point';
+    tip.classList.remove('hidden');
+    map.getContainer().style.cursor = 'crosshair';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '\u{1f525} Set Ignition Point';
+    tip.classList.add('hidden');
+    map.getContainer().style.cursor = '';
+  }
+}
+
+map.on('click', function(e) {
+  if (placeMode) {
+    addTower(e.latlng.lat, e.latlng.lng);
+  } else if (ignitionMode) {
+    setIgnitionPoint(e.latlng.lat, e.latlng.lng);
+    toggleIgnitionMode();
+  }
+});
+
+function addTower(lat, lng) {
+  const id = Date.now() + Math.random();
+  const marker = L.marker([lat, lng], { icon: defaultTowerIcon, draggable: true })
+    .bindPopup('<b>HydroDome Tower</b><br>200 GPM @ 70 PSI<br>40m radius (80m dia)<br><button onclick="removeTower(' + id + ')" style="margin-top:6px;padding:4px 10px;background:#c0392b;color:#fff;border:none;border-radius:4px;cursor:pointer;">Remove</button>')
+    .addTo(layers.towers);
+
+  marker.on('contextmenu', function() { removeTower(id); });
+  marker.on('dragend', function() { updateCoverage(); updateStats(); });
+
+  const circle = L.circle([lat, lng], {
+    radius: 40, color: '#2D5016', fillColor: '#2D5016',
+    fillOpacity: 0.15, weight: 2, opacity: 0.6
+  }).addTo(layers.coverage);
+
+  marker.on('drag', function(e) { circle.setLatLng(e.latlng); });
+
+  towers.push({ id: id, marker: marker, circle: circle, lat: lat, lng: lng });
+  simulated = false;
+  updateCoverage();
+  updateStats();
+  updateCostOverlay();
+}
+
+function removeTower(id) {
+  const idx = towers.findIndex(function(t) { return t.id === id; });
+  if (idx === -1) return;
+  const t = towers[idx];
+  layers.towers.removeLayer(t.marker);
+  layers.coverage.removeLayer(t.circle);
+  towers.splice(idx, 1);
+  simulated = false;
+  updateCoverage();
+  updateStats();
+  updateCostOverlay();
+}
+
+// ===================== COVERAGE =====================
+function updateCoverage() {
+  let covered = 0;
+  buildings.forEach(function(b, i) {
+    const isCovered = towers.some(function(t) {
+      const tPos = t.marker.getLatLng();
+      return haversine([tPos.lat, tPos.lng], [b.lat, b.lng]) <= 40;
+    });
+    if (isCovered) covered++;
+    if (!timeSimRunning) {
+      const rect = buildingRects[i];
+      if (isCovered) {
+        rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity:0.5 });
+        rect._protectionState = 'protected';
+      } else {
+        rect.setStyle({ color:'#888', fillColor:'#aaa', fillOpacity:0.5 });
+        rect._protectionState = 'unprotected';
+      }
+    }
+  });
+  const pct = buildings.length > 0 ? Math.round(covered / buildings.length * 100) : 0;
+  document.getElementById('cov-pct').textContent = pct + '%';
+  document.getElementById('cov-pct').style.color = pct > 80 ? '#2ecc71' : pct > 50 ? '#f1c40f' : '#e74c3c';
+  document.getElementById('stat-protected').textContent = covered + '/' + buildings.length + ' structures protected';
+}
+
+// ===================== COST VS DAMAGE OVERLAY =====================
+function updateCostOverlay() {
+  const n = towers.length;
+  const cost = n * 134000;
+  const costM = (cost / 1000000).toFixed(1);
+  const damage = 500000000;
+  const roi = cost > 0 ? Math.round(damage / cost) : 0;
+  document.getElementById('cost-system').textContent = n === 0 ? '$0' : '$' + costM + 'M';
+  document.getElementById('cost-roi').textContent = n === 0 ? '\u2014' : roi + ':1';
+}
+
+// ===================== ZONES =====================
+function computeZones() {
+  const MAX_ZONE_SIZE = 6;
+  const assigned = new Set();
+  const zones = [];
+  towers.forEach(function(t, i) {
+    if (assigned.has(i)) return;
+    const zone = [i];
+    assigned.add(i);
+    towers.forEach(function(t2, j) {
+      if (assigned.has(j)) return;
+      if (zone.length >= MAX_ZONE_SIZE) return;
+      const d = haversine(
+        [t.marker.getLatLng().lat, t.marker.getLatLng().lng],
+        [t2.marker.getLatLng().lat, t2.marker.getLatLng().lng]
+      );
+      if (d <= 200) { zone.push(j); assigned.add(j); }
+    });
+    zones.push(zone);
+  });
+  return zones;
+}
+
+// ===================== V8: DYNAMIC ZONE SUPPLY (Hazen-Williams) =====================
+// Compute pipe capacity with configurable slope
+function pipeCapacityGPM(diamMeters, slope) {
+  const C = 120;
+  const S = slope || getHydraulicSlope();
+  const dInches = diamMeters * 39.37;
+  return 0.2785 * C * Math.pow(dInches, 2.63) * Math.pow(S, 0.54);
+}
+
+// V10: Find the nearest pipe for a single lat/lng point
+function findNearestPipe(latlng) {
+  var bestPipe = waterMains[0];
+  var bestDist = Infinity;
+  waterMains.forEach(function(m) {
+    for (var i = 0; i < m.pts.length; i++) {
+      var d = haversine([latlng.lat, latlng.lng], m.pts[i]);
+      if (d < bestDist) { bestDist = d; bestPipe = m; }
+    }
+  });
+  return bestPipe;
+}
+
+// V9 compat: Find the nearest pipe for a zone (by its towers)
+function findZoneNearestPipe(towerIndices) {
+  var bestPipe = null;
+  var bestDist = Infinity;
+  towerIndices.forEach(function(ti) {
+    var tPos = towers[ti].marker.getLatLng();
+    waterMains.forEach(function(m) {
+      m.pts.forEach(function(pt) {
+        var d = haversine([tPos.lat, tPos.lng], pt);
+        if (d < bestDist) { bestDist = d; bestPipe = m; }
+      });
+    });
+  });
+  return bestPipe;
+}
+
+// ===================== V3: FORCE ALL ON + FIRE TRIAGE + AUTO-ACTIVATE =====================
+let forceAllOn = false;
+let autoActivateEnabled = true;
+
+function toggleForceAllOn() {
+  forceAllOn = !forceAllOn;
+  const btn = document.getElementById('btn-force-all');
+  if (forceAllOn) {
+    btn.style.background = '#e67e22';
+    btn.style.color = '#fff';
+    btn.style.boxShadow = '0 0 12px rgba(230,126,34,0.5)';
+    btn.textContent = '⚡ FORCE ALL: ON';
+  } else {
+    btn.style.background = 'transparent';
+    btn.style.color = '#e67e22';
+    btn.style.boxShadow = 'none';
+    btn.textContent = '⚡ Force All On';
+  }
+}
+
+function toggleAutoActivate() {
+  autoActivateEnabled = !autoActivateEnabled;
+  const btn = document.getElementById('btn-auto-activate');
+  if (autoActivateEnabled) {
+    btn.style.borderColor = '#9b59b6';
+    btn.style.color = '#9b59b6';
+    btn.textContent = '🎯 Auto-Activate: ON';
+  } else {
+    btn.style.borderColor = '#666';
+    btn.style.color = '#666';
+    btn.textContent = '🎯 Auto-Activate: OFF';
+  }
+}
+
+// Calculate distance from each tower to nearest fire threat (main fire + spot fires)
+function calcTowerFireProximity() {
+  var proximities = [];
+  if (!fireActive || !fireEllipse) {
+    // No fire: return empty (no proximity sorting)
+    for (var i = 0; i < towers.length; i++) proximities.push({ ti: i, dist: 99999, threatened: false });
+    return proximities;
+  }
+
+  for (var ti = 0; ti < towers.length; ti++) {
+    var tPos = towers[ti].marker.getLatLng();
+    // Distance to main fire center
+    var minDist = haversine([tPos.lat, tPos.lng], [fireEllipse.centerLat, fireEllipse.centerLng]);
+    // Subtract fire radius to get distance to fire EDGE
+    var fireEdgeDist = Math.max(0, minDist - (fireEllipse.semiMajor || 0));
+
+    // Also check spot fires
+    for (var si = 0; si < spotFires.length; si++) {
+      if (spotFires[si].merged) continue;
+      var sfDist = haversine([tPos.lat, tPos.lng], [spotFires[si].lat, spotFires[si].lng]);
+      var sfElapsed = simMinute - spotFires[si].startMinute;
+      var sfRadius = SPOT_FIRE_BASE_ROS * Math.exp(0.115 * windSpeedKmh) * sfElapsed;
+      var sfEdgeDist = Math.max(0, sfDist - sfRadius);
+      if (sfEdgeDist < fireEdgeDist) fireEdgeDist = sfEdgeDist;
+    }
+
+    // "Threatened" = fire edge within 200m (about 2x spray radius)
+    proximities.push({ ti: ti, dist: fireEdgeDist, threatened: fireEdgeDist < 200 });
+  }
+  return proximities;
+}
+
+// Check if any towers need auto-activation based on nearby spot fires or approaching main fire
+function checkAutoActivation() {
+  if (!autoActivateEnabled || !fireActive || !timeSimRunning) return;
+  if (!simZoneState || simZoneState.length === 0) return;
+
+  var proximities = calcTowerFireProximity();
+  proximities.forEach(function(p) {
+    if (p.threatened && simTowerState[p.ti]) {
+      // Mark this tower's zone as needing activation
+      var zoneIdx = simTowerState[p.ti].zoneIdx;
+      if (simZoneState[zoneIdx]) {
+        simZoneState[zoneIdx]._fireOverride = true;
+      }
+    }
+  });
+}
+
+// ===================== V10: HYDRAULIC CASCADE REFILL MODEL =====================
+// 4-level constraint hierarchy:
+//   L1: Cistern connection max (750 GPM per tower, 150mm service line)
+//   L2: Distribution main (street pipe capacity shared among towers on that pipe)
+//   L3: Trunk line (larger pipes feeding multiple street pipes - implicit via pipe hierarchy)
+//   L4: Reservoir feed F1 (ultimate system bottleneck)
+const CISTERN_CONNECTION_MAX_GPM = 750;
+
+// Last cascade result for display
+var lastCascadeResult = { totalDemand: 0, f1Capacity: 0, f1Bottleneck: false, pipeLoads: {} };
+
+function calcRefillAllocations() {
+  var slope = getHydraulicSlope();
+
+  // F1 bottleneck (Level 4)
+  var f1Pipe = waterMains.find(function(m) { return m.id === 'F1'; });
+  var f1Capacity = f1Pipe ? pipeCapacityGPM(f1Pipe.diam, slope) * 0.60 : 99999;
+  var systemBudget = f1Capacity;
+
+  // Pipe capacities (Level 2/3)
+  var pipeRemaining = {};
+  waterMains.forEach(function(m) {
+    pipeRemaining[m.id] = pipeCapacityGPM(m.diam, slope) * 0.60;
+  });
+
+  // Build demand list (Step 1)
+  var demands = [];
+  simTowerState.forEach(function(ts, ti) {
+    ts._refillGPM = 0; // default
+    ts._refillPipeId = '';
+    var cisternPct = (ts.cisternGal / CISTERN_MAX) * 100;
+    var need = Math.max(0, (95 - cisternPct) / 95);
+    if (need <= 0) return;
+
+    var nearestPipe = findNearestPipe(towers[ti].marker.getLatLng());
+    ts._refillPipeId = nearestPipe.id;
+    demands.push({ ti: ti, need: need, pipeId: nearestPipe.id, cisternPct: cisternPct });
+  });
+
+  // V3: Sort by fire proximity first, then need (fire-threatened towers get priority)
+  var fireProx = calcTowerFireProximity();
+  var proxMap = {};
+  fireProx.forEach(function(p) { proxMap[p.ti] = p; });
+  demands.sort(function(a, b) {
+    var aProx = proxMap[a.ti] || { dist: 99999, threatened: false };
+    var bProx = proxMap[b.ti] || { dist: 99999, threatened: false };
+    // Threatened towers first
+    if (aProx.threatened && !bProx.threatened) return -1;
+    if (!aProx.threatened && bProx.threatened) return 1;
+    // Among threatened, closest to fire first
+    if (aProx.threatened && bProx.threatened) return aProx.dist - bProx.dist;
+    // Among non-threatened, emptiest first (original behavior)
+    return b.need - a.need;
+  });
+
+  // Allocate (Step 3) - priority cascade
+  demands.forEach(function(d) {
+    var wantGPM = d.need * CISTERN_CONNECTION_MAX_GPM;
+    var pipeAvail = pipeRemaining[d.pipeId] || 0;
+    var allocated = Math.min(wantGPM, CISTERN_CONNECTION_MAX_GPM, pipeAvail, systemBudget);
+    allocated = Math.max(0, allocated);
+
+    simTowerState[d.ti]._refillGPM = allocated;
+    pipeRemaining[d.pipeId] = Math.max(0, (pipeRemaining[d.pipeId] || 0) - allocated);
+    systemBudget -= allocated;
+  });
+
+  // Compute actual pipe loads for visualization
+  var pipeLoads = {};
+  waterMains.forEach(function(m) { pipeLoads[m.id] = 0; });
+  simTowerState.forEach(function(ts, ti) {
+    var pipeId = ts._refillPipeId || '';
+    if (pipeId && pipeLoads[pipeId] !== undefined) {
+      pipeLoads[pipeId] += (ts._refillGPM || 0);
+      if (ts.active) {
+        pipeLoads[pipeId] += (ts.pumpPct / 100) * SPRAY_GPM;
+      }
+    }
+  });
+
+  var totalDemand = f1Capacity - systemBudget;
+  lastCascadeResult = {
+    totalDemand: totalDemand,
+    f1Capacity: f1Capacity,
+    f1Bottleneck: systemBudget < 1,
+    pipeLoads: pipeLoads,
+    pipeRemaining: pipeRemaining
+  };
+
+  return lastCascadeResult;
+}
+
+// Legacy wrapper for stats display before sim
+function calcAllZoneSupplies(zonesList) {
+  if (!zonesList || zonesList.length === 0) return [];
+  var zonePipes = zonesList.map(function(towerIndices) {
+    return findZoneNearestPipe(towerIndices);
+  });
+  var pipeGroups = {};
+  zonePipes.forEach(function(pipe, zi) {
+    if (!pipe) return;
+    if (!pipeGroups[pipe.id]) pipeGroups[pipe.id] = [];
+    pipeGroups[pipe.id].push(zi);
+  });
+  var zoneSupplies = new Array(zonesList.length);
+  for (var i = 0; i < zoneSupplies.length; i++) zoneSupplies[i] = 0;
+  Object.keys(pipeGroups).forEach(function(pipeId) {
+    var zonesOnPipe = pipeGroups[pipeId];
+    var pipe = waterMains.find(function(m) { return m.id === pipeId; });
+    if (!pipe) return;
+    var pipeAvailable = pipeCapacityGPM(pipe.diam) * 0.60;
+    var perZone = pipeAvailable / zonesOnPipe.length;
+    zonesOnPipe.forEach(function(zi) { zoneSupplies[zi] = Math.round(perZone); });
+  });
+  var f1Pipe = waterMains.find(function(m) { return m.id === 'F1'; });
+  var f1Cap = f1Pipe ? pipeCapacityGPM(f1Pipe.diam) * 0.60 : 99999;
+  var totalDemand = 0;
+  for (var i = 0; i < zoneSupplies.length; i++) totalDemand += zoneSupplies[i];
+  if (totalDemand > f1Cap && totalDemand > 0) {
+    var throttle = f1Cap / totalDemand;
+    for (var i = 0; i < zoneSupplies.length; i++) zoneSupplies[i] = Math.round(zoneSupplies[i] * throttle);
+  }
+  return zoneSupplies;
+}
+
+function calcZoneSupplyGPM(towerIndices) {
+  var pipe = findZoneNearestPipe(towerIndices);
+  if (!pipe) return 0;
+  return Math.round(pipeCapacityGPM(pipe.diam) * 0.60);
+}
+
+function recalcZoneSupply() {
+  // V10: zone supply is now computed per-tower via cascade, but we keep zone-level info for display
+  if (!simZoneState || !simZones) return;
+  simZoneState.forEach(function(zs, zi) {
+    zs.nearestPipeId = findZoneNearestPipe(zs.towerIndices) ? findZoneNearestPipe(zs.towerIndices).id : '?';
+  });
+}
+
+// ===================== STATS =====================
+function updateStats() {
+  const n = towers.length;
+  const zones = computeZones();
+  const flowTotal = n * 200;
+  const flowDuty = flowTotal * 0.5;
+  const coverageHa = Math.min(n * 0.50, TOWN_AREA_HA * 1.2).toFixed(1);
+  const costLow = n * 118000;
+  const costHigh = n * 150000;
+
+  document.getElementById('stat-towers').textContent = n;
+  document.getElementById('stat-zones').textContent = zones.length;
+  document.getElementById('stat-flow').textContent = flowDuty;
+  document.getElementById('stat-coverage').textContent = coverageHa;
+  document.getElementById('stat-cost').textContent = n === 0 ? '$0' :
+    '$' + (costLow/1000).toFixed(0) + 'k\u2013' + (costHigh/1000).toFixed(0) + 'k';
+
+  // V9: Compute pipe-shared supply per zone
+  var f1Pipe = waterMains.find(function(m) { return m.id === 'F1'; });
+  var f1Cap = f1Pipe ? Math.round(pipeCapacityGPM(f1Pipe.diam) * 0.60) : 1200;
+  const systemCapacity = f1Cap;
+  const zoneSupplies = calcAllZoneSupplies(zones);
+  let totalRefill = 0;
+  zoneSupplies.forEach(function(s) { totalRefill += s; });
+
+  const loadPct = n === 0 ? 0 : Math.min((totalRefill / systemCapacity) * 100, 150);
+  const fill = document.getElementById('capacity-fill');
+  const badge = document.getElementById('status-badge');
+  const capLabel = document.getElementById('capacity-label');
+
+  fill.style.width = Math.min(loadPct, 100) + '%';
+  if (n === 0) {
+    fill.style.background = '#2ecc71'; badge.className = 'status-badge status-green';
+    badge.textContent = 'STANDBY'; capLabel.textContent = 'No towers placed';
+  } else if (loadPct < 60) {
+    fill.style.background = '#2ecc71'; badge.className = 'status-badge status-green';
+    badge.textContent = 'ADEQUATE'; capLabel.textContent = 'Mains: ' + totalRefill + ' GPM (dynamic) / ' + systemCapacity + ' GPM capacity (' + loadPct.toFixed(0) + '%)';
+  } else if (loadPct < 85) {
+    fill.style.background = '#f1c40f'; badge.className = 'status-badge status-yellow';
+    badge.textContent = 'MODERATE'; capLabel.textContent = 'Mains: ' + totalRefill + ' GPM (dynamic) / ' + systemCapacity + ' GPM capacity (' + loadPct.toFixed(0) + '%)';
+  } else {
+    fill.style.background = '#e74c3c'; badge.className = 'status-badge status-red';
+    badge.textContent = 'HIGH LOAD'; capLabel.textContent = 'Mains: ' + totalRefill + ' GPM / ' + systemCapacity + ' GPM -- consider staging';
+  }
+
+  // Cistern info
+  const CISTERN_GAL = 8000;
+  const cisternDiv = document.getElementById('cistern-info');
+  if (n === 0) {
+    cisternDiv.innerHTML = 'Place towers to see cistern analysis.';
+  } else {
+    const totalStorage = n * CISTERN_GAL;
+    const evacLabel = evacuationMode ? 'ON (S=0.01)' : 'OFF (S=0.005)';
+    cisternDiv.innerHTML =
+      '<div style="margin-bottom:6px;"><span style="color:#4da6ff;">&#x1f4a7; ' + n + ' x ' + (CISTERN_GAL/1000).toFixed(0) + 'k gal</span> = <b>' + (totalStorage/1000).toFixed(0) + 'k gal</b> total</div>' +
+      '<div style="margin-bottom:4px;"><b>V8 Two-Phase Operation:</b></div>' +
+      '<div style="margin-left:8px; margin-bottom:4px;"><b>Phase 1</b> (0-10 min): ALL towers spray at 200 GPM.<br><b>Phase 2</b> (10-180 min): 2 zones active at a time, rotating every 10 min.</div>' +
+      '<div style="margin-bottom:4px;"><b>Refill:</b> <span style="color:#2ecc71;">Hydraulic Cascade (V10)</span></div>' +
+      '<div style="margin-left:8px; margin-bottom:4px;">Evacuation Mode: <b>' + evacLabel + '</b><br>4-level cascade: cistern connection (750 GPM max), street pipe, trunk line, F1 feed.<br>Emptiest cisterns get priority. Towers >95% get zero refill.<br>Reservoir feed (F1, 250mm) caps total: <b>' + f1Cap + ' GPM</b><br>Total demand: <b>' + totalRefill + ' GPM</b>' + (totalRefill > f1Cap ? ' <span style="color:#e74c3c;">(THROTTLED by F1)</span>' : '') + '</div>' +
+      '<div style="background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.3);border-radius:6px;padding:8px;margin-top:6px;"><span style="color:#2ecc71;">&#x1f4a1;</span> <span style="font-size:11px;">V10 hydraulic cascade: each tower is allocated refill based on need priority, constrained by its pipe (150mm = ~' + Math.round(pipeCapacityGPM(0.15) * 0.6) + ' GPM, 200mm = ~' + Math.round(pipeCapacityGPM(0.20) * 0.6) + ' GPM at 60%), cistern connection (750 GPM), and F1 (250mm) system bottleneck.</span></div>';
+  }
+
+  // Duty cycle info
+  if (!timeSimRunning) {
+    const dutyDiv = document.getElementById('duty-info');
+    if (n === 0) {
+      dutyDiv.innerHTML = 'Place towers and run simulation to see duty cycle recommendations.';
+    } else {
+      const towersPerZone = zones.map(function(z) { return z.length; });
+      const maxZone = Math.max.apply(null, towersPerZone);
+      dutyDiv.innerHTML =
+        '<b>' + n + ' towers</b> in <b>' + zones.length + ' zone(s)</b><br>' +
+        'Full spray demand: ' + flowTotal + ' GPM<br>' +
+        'With 50% duty cycling: <b>' + flowDuty + ' GPM</b><br>' +
+        'Mains supply: <b style="color:#2ecc71;">' + totalRefill + ' GPM</b> (dynamic per zone)<br>' +
+        zones.length + ' x Capstone C65 microturbine<br>' +
+        'Max towers/zone: ' + maxZone + ' (target: 4-5)<br>' +
+        (maxZone > 5 ? '<span style="color:#e74c3c;">Warning: Consider splitting zones</span>' : '<span style="color:#2ecc71;">Zone sizing OK</span>');
+    }
+  }
+}
+
+// ===================== HYDRAULIC SIMULATION (STATIC) =====================
+function runSimulation() {
+  if (towers.length === 0) { alert('Place some towers first!'); return; }
+  const btn = document.getElementById('btn-sim');
+  btn.textContent = 'Simulating...'; btn.disabled = true;
+  setTimeout(function() {
+    const C = 120;
+    const S = getHydraulicSlope();
+    pipePolylines.forEach(function(pl) {
+      const m = pl._pipeData;
+      const d = m.diam;
+      const Qmax = 0.2785 * C * Math.pow(d, 2.63) * Math.pow(S, 0.54);
+      const QmaxGPM = Qmax * 15850.3;
+      var demandGPM = 0;
+      towers.forEach(function(t) {
+        const tPos = t.marker.getLatLng();
+        const nearPipe = m.pts.some(function(p) { return haversine([tPos.lat, tPos.lng], p) < 150; });
+        if (nearPipe) demandGPM += 100;
+      });
+      if (m.id === 'M1' || m.id === 'F1') demandGPM = towers.length * 100;
+      const loadRatio = QmaxGPM > 0 ? demandGPM / QmaxGPM : 0;
+      var color;
+      if (loadRatio < 0.60) color = '#2ecc71';
+      else if (loadRatio < 0.85) color = '#f1c40f';
+      else color = '#e74c3c';
+      pl.setStyle({ color: color, weight: m.diam >= 0.20 ? 5 : 3, opacity: 1 });
+      pl.setTooltipContent(m.label + '<br>Capacity: ' + QmaxGPM.toFixed(0) + ' GPM<br>Demand: ' + demandGPM.toFixed(0) + ' GPM<br>Load: ' + (loadRatio * 100).toFixed(0) + '%');
+    });
+    simulated = true;
+    btn.textContent = '\u26a1 Run Simulation'; btn.disabled = false;
+    updateStats();
+  }, 800);
+}
+
+// ===================== WIND =====================
+let windAngleDeg = 225;
+let windSpeedKmh = 15;
+
+function updateWind() {
+  windAngleDeg = parseInt(document.getElementById('wind-dir').value);
+  windSpeedKmh = parseInt(document.getElementById('wind-speed').value);
+  document.getElementById('wind-speed-val').textContent = windSpeedKmh + ' km/h';
+  const arrow = document.getElementById('wind-arrow');
+  if (windAngleDeg < 0 || windSpeedKmh === 0) {
+    arrow.style.display = 'none';
+  } else {
+    arrow.style.display = 'flex';
+    arrow.innerHTML = '<div style="transform:rotate(' + windAngleDeg + 'deg);font-size:24px;">&#x2b07;</div>';
+  }
+}
+updateWind();
+
+// ===================== SPRAY ELLIPSE GEOMETRY =====================
+const PUMP_RADIUS_MAP = {100:40, 87:36, 75:33, 60:28, 50:24, 40:20, 30:16};
+function getSprayRadius(pumpPct) {
+  const keys = [100,87,75,60,50,40,30];
+  for (var i = 0; i < keys.length - 1; i++) {
+    if (pumpPct >= keys[i]) return PUMP_RADIUS_MAP[keys[i]];
+    if (pumpPct >= keys[i+1]) {
+      const f = (pumpPct - keys[i+1]) / (keys[i] - keys[i+1]);
+      return PUMP_RADIUS_MAP[keys[i+1]] + f * (PUMP_RADIUS_MAP[keys[i]] - PUMP_RADIUS_MAP[keys[i+1]]);
+    }
+  }
+  return 16;
+}
+
+function computeEllipsePoints(center, baseRadius, windAngle, windSpeed, numPts) {
+  const pts = [];
+  const n = numPts || 32;
+  if (windSpeed <= 0 || windAngle < 0) {
+    for (var i = 0; i < n; i++) {
+      const a = (2 * Math.PI * i) / n;
+      const dlat = baseRadius * Math.cos(a) / 111320;
+      const dlng = baseRadius * Math.sin(a) / (111320 * Math.cos(center.lat * Math.PI / 180));
+      pts.push([center.lat + dlat, center.lng + dlng]);
+    }
+    return pts;
+  }
+  const stretchFactor = 1 + (windSpeed / 30) * 0.15;
+  const compressFactor = 1 - (windSpeed / 30) * 0.08;
+  const semiMajor = baseRadius * stretchFactor;
+  const semiMinor = baseRadius * compressFactor;
+  const windRad = windAngle * Math.PI / 180;
+  const offsetDist = (stretchFactor - 1) * baseRadius * 0.3;
+  const cLat = center.lat + offsetDist * Math.cos(windRad) / 111320;
+  const cLng = center.lng + offsetDist * Math.sin(windRad) / (111320 * Math.cos(center.lat * Math.PI / 180));
+
+  for (var i = 0; i < n; i++) {
+    const a = (2 * Math.PI * i) / n;
+    const ex = semiMinor * Math.cos(a);
+    const ey = semiMajor * Math.sin(a);
+    const rx = ex * Math.cos(windRad) - ey * Math.sin(windRad);
+    const ry = ex * Math.sin(windRad) + ey * Math.cos(windRad);
+    const dlat = ry / 111320;
+    const dlng = rx / (111320 * Math.cos(center.lat * Math.PI / 180));
+    pts.push([cLat + dlat, cLng + dlng]);
+  }
+  return pts;
+}
+
+// ===================== RESERVOIR MODEL =====================
+const RESERVOIR_MAX_GAL = 343000;
+const SOURCE_INFLOW_GPM = 800;
+let reservoirGal = RESERVOIR_MAX_GAL;
+
+function initReservoirGauge() {
+  const gauge = document.getElementById('reservoir-gauge');
+  gauge.innerHTML = '<div class="res-gauge-inner"><div class="res-gauge-fill" id="res-fill" style="height:100%;"></div><div class="res-gauge-label" id="res-label">100%</div></div><div class="res-gauge-title">Reservoir</div>';
+  updateReservoirGaugePosition();
+  map.on('move zoom', updateReservoirGaugePosition);
+}
+
+function updateReservoirGaugePosition() {
+  const gauge = document.getElementById('reservoir-gauge');
+  const pt = map.latLngToContainerPoint([reservoir.lat, reservoir.lng]);
+  gauge.style.left = (pt.x + 20) + 'px';
+  gauge.style.top = (pt.y - 50) + 'px';
+}
+
+function updateReservoirGauge() {
+  const pct = Math.max(0, Math.min(100, (reservoirGal / RESERVOIR_MAX_GAL) * 100));
+  const fill = document.getElementById('res-fill');
+  const label = document.getElementById('res-label');
+  if (!fill) return;
+  fill.style.height = pct + '%';
+  if (pct > 60) fill.style.background = 'linear-gradient(to top, #3498db, #5dade2)';
+  else if (pct > 30) fill.style.background = 'linear-gradient(to top, #f1c40f, #f39c12)';
+  else fill.style.background = 'linear-gradient(to top, #e74c3c, #c0392b)';
+  label.textContent = Math.round(pct) + '%';
+}
+
+initReservoirGauge();
+
+// Sound disabled
+function startSpraySound() {}
+function stopSpraySound() {}
+function updateSoundLevels() {}
+
+// ===================== TIME SIMULATION ENGINE =====================
+const ZONE_COLORS = ['#3498db', '#2ecc71', '#9b59b6', '#FF6B35'];
+const PUMP_LEVELS = [100, 87, 60, 40, 30];
+const CISTERN_MAX = 8000;
+const SPRAY_GPM = 200;
+const SIM_DURATION_MIN = 180;
+
+let timeSimRunning = false;
+let simSpeed = 1;
+let timeSimPaused = false;
+let simMinute = 0;
+let simInterval = null;
+let simTowerState = [];
+let simZoneState = [];
+let simZones = [];
+let pulsePhase = 0;
+// V8: sim-time rotation tracking
+let simRotationAngle = 0;
+
+function toggleTimeSim() {
+  if (timeSimRunning) {
+    if (timeSimPaused) { resumeTimeSim(); } else { pauseTimeSim(); }
+    return;
+  }
+  startTimeSim();
+}
+
+function startTimeSim() {
+  if (towers.length === 0) { alert('Place some towers first!'); return; }
+  timeSimRunning = true;
+  timeSimPaused = false;
+  simMinute = 0;
+  pulsePhase = 0;
+  simRotationAngle = 0;
+  reservoirGal = RESERVOIR_MAX_GAL;
+
+  simZones = computeZones();
+
+  manualTriage = {};
+  var initSupplies = calcAllZoneSupplies(simZones);
+  simZoneState = simZones.map(function(towerIndices, zi) {
+    return {
+      phase: 'spray',
+      minutesInPhase: 0,
+      towerIndices: towerIndices,
+      manualOverride: null,
+      supplyGPM: initSupplies[zi] || 0,
+      nearestPipeId: findZoneNearestPipe(towerIndices) ? findZoneNearestPipe(towerIndices).id : '?'
+    };
+  });
+
+  simTowerState = towers.map(function(t, ti) {
+    const zi = simZones.findIndex(function(z) { return z.includes(ti); });
+    return {
+      active: true,
+      pumpPct: PUMP_LEVELS[ti % PUMP_LEVELS.length],
+      cisternGal: CISTERN_MAX,
+      sprayLayer: null,
+      inactiveRing: null,
+      zoneIdx: zi
+    };
+  });
+
+  towers.forEach(function(t) { t.circle.setStyle({ opacity: 0, fillOpacity: 0 }); });
+
+  document.getElementById('sim-clock').style.display = 'block';
+  document.getElementById('speed-controls').style.display = 'block';
+  setSimSpeed(1);
+  document.getElementById('timeline-bar').style.display = 'block';
+  document.getElementById('duty-section').style.display = 'none';
+  document.getElementById('sim-live-section').style.display = 'block';
+  document.getElementById('zone-triage-section').style.display = 'block';
+  document.getElementById('reservoir-gauge').style.display = 'block';
+  if (ignitionPoint) document.getElementById('fire-section').style.display = 'block';
+  updateTriagePanel();
+  document.getElementById('btn-timesim').textContent = '\u23f8 Pause';
+  document.getElementById('btn-timesim').className = 'btn btn-danger';
+  document.getElementById('legend').style.bottom = '65px';
+
+  if (ignitionPoint) startFire();
+  startSpraySound();
+  simTick();
+  simInterval = setInterval(simTick, 500);
+}
+
+function pauseTimeSim() {
+  timeSimPaused = true;
+  clearInterval(simInterval);
+  document.getElementById('btn-timesim').textContent = '\u25b6 Resume';
+  document.getElementById('btn-timesim').className = 'btn btn-timesim';
+  stopSpraySound();
+}
+
+function resumeTimeSim() {
+  timeSimPaused = false;
+  simInterval = setInterval(simTick, 500);
+  document.getElementById('btn-timesim').textContent = '\u23f8 Pause';
+  document.getElementById('btn-timesim').className = 'btn btn-danger';
+  startSpraySound();
+}
+
+function stopTimeSim() {
+  timeSimRunning = false;
+  timeSimPaused = false;
+  clearInterval(simInterval);
+
+  layers.simSpray.clearLayers();
+  simTowerState.forEach(function(s) { s.sprayLayer = null; s.inactiveRing = null; });
+
+  towers.forEach(function(t) {
+    t.marker.setIcon(defaultTowerIcon);
+    t.circle.setStyle({ opacity: 0.6, fillOpacity: 0.15 });
+  });
+
+  buildingRects.forEach(function(rect) {
+    rect.setStyle({ color:'#888', fillColor:'#aaa', fillOpacity:0.5 });
+    rect._protectionState = 'unprotected';
+  });
+
+  updatePipeLoads(0);
+  clearFireVisuals();
+
+  document.getElementById('sim-clock').style.display = 'none';
+  document.getElementById('timeline-bar').style.display = 'none';
+  document.getElementById('duty-section').style.display = 'block';
+  document.getElementById('sim-live-section').style.display = 'none';
+  document.getElementById('zone-triage-section').style.display = 'none';
+  document.getElementById('fire-section').style.display = 'none';
+  document.getElementById('reservoir-gauge').style.display = 'none';
+  document.getElementById('btn-timesim').textContent = '\u25b6 Run Time Simulation';
+  document.getElementById('btn-timesim').className = 'btn btn-timesim';
+  document.getElementById('speed-controls').style.display = 'none';
+  document.getElementById('legend').style.bottom = '20px';
+
+  stopSpraySound();
+  updateStats();
+  updateCoverage();
+}
+
+// ===== PIPE LOAD MODEL =====
+function updatePipeLoads(totalMainsDemand) {
+  if (!timeSimRunning) {
+    pipePolylines.forEach(function(pl) {
+      if (pl._loadColored) {
+        pl.setStyle({ color: pl._origColor, weight: pl._origWeight, opacity: 0.8, dashArray: null });
+        pl._loadColored = false;
+        var m = pl._pipeData;
+        pl.unbindTooltip();
+        pl.bindTooltip(m.label + '<br>&Oslash;' + (m.diam*1000).toFixed(0) + 'mm', { className:'pipe-tooltip' });
+      }
+    });
+    return;
+  }
+
+  pipePolylines.forEach(function(pl) {
+    const m = pl._pipeData;
+    const capacity = pipeCapacityGPM(m.diam);
+
+    // V10: Use actual cascade-computed pipe loads
+    var pipeLoad = (lastCascadeResult.pipeLoads && lastCascadeResult.pipeLoads[m.id]) || 0;
+
+    // F1 carries total system demand
+    if (m.id === 'F1') {
+      pipeLoad = Math.max(pipeLoad, lastCascadeResult.totalDemand || 0);
+    }
+    // Trunk lines near reservoir carry proportional load
+    var pipeMidIdx = Math.floor(m.pts.length / 2);
+    var pipeMid = m.pts[pipeMidIdx];
+    var distToRes = haversine(pipeMid, [reservoir.lat, reservoir.lng]);
+    if (distToRes < 300 && m.diam >= 0.20 && m.id !== 'F1') {
+      pipeLoad = Math.max(pipeLoad, (lastCascadeResult.totalDemand || 0) * 0.6);
+    }
+
+    const loadPct = capacity > 0 ? (pipeLoad / capacity) * 100 : 0;
+    var color, weight;
+    if (loadPct < 50) {
+      color = '#2ecc71'; weight = m.diam >= 0.20 ? 5 : 3;
+    } else if (loadPct < 80) {
+      color = '#f1c40f'; weight = m.diam >= 0.20 ? 6 : 4;
+    } else {
+      color = '#e74c3c'; weight = m.diam >= 0.20 ? 7 : 5;
+    }
+
+    pl.setStyle({ color: color, weight: weight, opacity: 0.9 });
+    pl._loadColored = true;
+
+    pl.unbindTooltip();
+    var statusText = loadPct < 50 ? 'OK' : loadPct < 80 ? 'Moderate' : 'High Load';
+    pl.bindTooltip(
+      m.label + '<br>&Oslash;' + (m.diam*1000).toFixed(0) + 'mm -- Capacity: ' + Math.round(capacity) + ' GPM<br>' +
+      'Load: ' + Math.round(pipeLoad) + ' GPM (' + Math.round(loadPct) + '%) ' + statusText,
+      { className: 'pipe-tooltip', sticky: true }
+    );
+  });
+}
+
+function simTick() {
+  if (simMinute >= SIM_DURATION_MIN) {
+    stopTimeSim();
+    return;
+  }
+
+  pulsePhase += 0.15;
+  // V8: advance sim rotation (30 sim-seconds per revolution)
+  // Each tick = 0.5 real seconds, advances simSpeed sim-minutes
+  // simSpeed minutes per tick, so sim-seconds per tick = simSpeed * 60 * 0.5 ... no
+  // Actually each tick is 0.5 real seconds and advances simSpeed sim-minutes
+  // So sim-seconds per tick = simSpeed * 60
+  // Wait no: simMinute advances by simSpeed each tick (at bottom). Tick interval = 500ms.
+  // So 1 tick = simSpeed sim-minutes = simSpeed * 60 sim-seconds
+  // 30 sim-seconds per revolution = 2*PI radians
+  // Per tick: (simSpeed * 60 / 30) * 2*PI radians... that's way too fast
+  // Actually: tick happens every 500ms real time, advancing simSpeed minutes of sim time
+  // But simSpeed=1 means 1 sim-minute per tick (per 0.5 real seconds) which is 120x real time
+  // Hmm, let me re-examine. At simSpeed=1, tick every 500ms advances simMinute by 1.
+  // So 1 real second = 2 sim-minutes. That's already accelerated.
+  // The rotation should be 30 sim-seconds per revolution.
+  // Per tick at simSpeed=1: 1 sim-minute = 60 sim-seconds. Fraction of revolution = 60/30 = 2 full revolutions per tick.
+  // That's very fast. Let me use a more reasonable rotation: tied to simMinute directly.
+  // angle = (simMinute * 60 / 30) * 2 * PI = simMinute * 4 * PI
+  // Actually let's just compute from simMinute and keep it smooth
+  simRotationAngle += (simSpeed * 60 / 30) * (2 * Math.PI) * 0.5;
+  // Hmm this is per tick (500ms). At simSpeed=1, per 500ms we advance 1 sim-minute = 60 sim-sec.
+  // fraction of revolution per tick = 60/30 = 2 revolutions. That's 2 full spins per tick. Way too fast visually.
+  // The issue is the sim itself runs 1 min per tick at speed 1, so everything is 120x real time.
+  // Let's just make rotation look good: tie it to real time * simSpeed for the canvas animation,
+  // and use simMinute for the Leaflet polygons.
+  // We'll handle rotation in the canvas drawSprayAnimation function using performance.now() * simSpeed.
+
+  const totalZones = simZones.length;
+
+  simZoneState.forEach(function(zs, zi) {
+    if (zs.manualOverride) {
+      zs.phase = zs.manualOverride;
+      return;
+    }
+    // V3: Force All On overrides normal duty cycling
+    if (forceAllOn) {
+      zs.phase = 'spray';
+    } else if (simMinute < 10) {
+      zs.phase = 'spray';
+    } else {
+      const relayMinute = simMinute - 10;
+      const cyclePosition = Math.floor(relayMinute / 10);
+      const activeZone1 = (cyclePosition * 2) % totalZones;
+      const activeZone2 = (cyclePosition * 2 + 1) % totalZones;
+      if (zi === activeZone1 || zi === activeZone2) {
+        zs.phase = 'spray';
+      } else {
+        zs.phase = 'refill';
+      }
+    }
+    // V3: Auto-activate override - fire-threatened zones always spray
+    if (autoActivateEnabled && zs._fireOverride) {
+      zs.phase = 'spray';
+      zs._fireOverride = false;
+    }
+  });
+
+  const pulseOpacity = 0.15 + 0.15 * (0.5 + 0.5 * Math.sin(pulsePhase));
+  let totalMainsDemand = 0;
+
+  // V3: Check for auto-activation of towers near fire
+  checkAutoActivation();
+
+  // V10: Hydraulic cascade refill allocation (replaces V9 zone-level pipe sharing)
+  // First set active/inactive state for all towers (needed before cascade calc)
+  simTowerState.forEach(function(ts, ti) {
+    const zs = simZoneState[ts.zoneIdx];
+    const towersInZone = zs.towerIndices;
+    const posInZone = towersInZone.indexOf(ti);
+    const cycleMin = Math.floor(simMinute);
+    const levelIdx = (posInZone + cycleMin) % PUMP_LEVELS.length;
+    const zoneActive = zs.phase === 'spray';
+
+    if (zoneActive && ts.cisternGal > 0) {
+      ts.active = true;
+      ts.pumpPct = PUMP_LEVELS[levelIdx];
+    } else {
+      ts.active = false;
+      ts.pumpPct = 0;
+    }
+  });
+
+  // Run the 4-level hydraulic cascade
+  var cascadeResult = calcRefillAllocations();
+  totalMainsDemand = cascadeResult.totalDemand;
+
+  // Update zone supply display values from tower-level allocations
+  simZoneState.forEach(function(zs, zi) {
+    var zoneRefill = 0;
+    zs.towerIndices.forEach(function(ti) { zoneRefill += (simTowerState[ti]._refillGPM || 0); });
+    zs.supplyGPM = Math.round(zoneRefill);
+  });
+
+  // Apply refill and drain per tower
+  simTowerState.forEach(function(ts, ti) {
+    var refillGPM = ts._refillGPM || 0;
+
+    if (ts.active && ts.cisternGal > 0) {
+      var drainGPM = (ts.pumpPct / 100) * SPRAY_GPM;
+      var netChange = refillGPM - drainGPM;
+      ts.cisternGal = Math.max(0, Math.min(CISTERN_MAX, ts.cisternGal + netChange * simSpeed));
+      if (ts.cisternGal <= 0) {
+        ts.active = false;
+        ts.pumpPct = 0;
+      }
+    } else {
+      // Not spraying: just refill
+      ts.cisternGal = Math.min(CISTERN_MAX, ts.cisternGal + refillGPM * simSpeed);
+    }
+
+    const zoneColor = ts.active ? ZONE_COLORS[ts.zoneIdx % ZONE_COLORS.length] : '#666';
+    const cisternPct = Math.round(ts.cisternGal / CISTERN_MAX * 100);
+    towers[ti].marker.setIcon(makeTowerIcon('', zoneColor, cisternPct));
+
+    const tPos = towers[ti].marker.getLatLng();
+    if (ts.sprayLayer) { layers.simSpray.removeLayer(ts.sprayLayer); ts.sprayLayer = null; }
+    if (ts.inactiveRing) { layers.simSpray.removeLayer(ts.inactiveRing); ts.inactiveRing = null; }
+
+    if (ts.active && ts.pumpPct > 0) {
+      const radius = getSprayRadius(ts.pumpPct);
+      const pts = computeEllipsePoints(tPos, radius, windAngleDeg, windSpeedKmh, 32);
+      ts.sprayLayer = L.polygon(pts, {
+        color: ZONE_COLORS[ts.zoneIdx % ZONE_COLORS.length],
+        fillColor: '#3498db',
+        fillOpacity: pulseOpacity,
+        weight: 2, opacity: 0.6
+      });
+      layers.simSpray.addLayer(ts.sprayLayer);
+    } else {
+      const pts = computeEllipsePoints(tPos, 40, -1, 0, 32);
+      ts.inactiveRing = L.polygon(pts, {
+        color: '#888', fillColor: 'transparent', fillOpacity: 0,
+        weight: 1.5, opacity: 0.4, dashArray: '6,4'
+      });
+      layers.simSpray.addLayer(ts.inactiveRing);
+    }
+  });
+
+  updatePipeLoads(totalMainsDemand);
+
+  const netFlow = SOURCE_INFLOW_GPM - totalMainsDemand;
+  reservoirGal = Math.max(0, Math.min(RESERVOIR_MAX_GAL, reservoirGal + netFlow * simSpeed));
+  updateReservoirGauge();
+  updateReservoirGaugePosition();
+
+  updateBuildingProtection();
+  if (fireActive) fireSimTick();
+  updateSoundLevels();
+
+  const totalMin = Math.floor(simMinute);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  const ss = Math.floor((simMinute % 1) * 60);
+  const phaseTag = simMinute < 10 ? 'P1: SATURATION' : 'P2: RELAY';
+  const evacTag = evacuationMode ? ' EVAC' : '';
+  document.getElementById('sim-clock').textContent = 'T+' + hh + ':' + String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0') + '  [' + simSpeed + 'x]  ' + phaseTag + evacTag;
+
+  const pct = (simMinute / SIM_DURATION_MIN) * 100;
+  document.getElementById('tl-fill').style.width = pct + '%';
+  document.getElementById('tl-playhead').style.left = pct + '%';
+
+  updateSimPanel();
+  updateTriagePanel();
+  if (scadaVisible) updateSCADAPanel();
+
+  simMinute += simSpeed;
+}
+
+function setSimSpeed(speed) {
+  simSpeed = speed;
+  var slider = document.getElementById('speed-slider');
+  if (slider) slider.value = speedToSlider(speed);
+  updateSpeedLabel();
+}
+
+function sliderToSpeed(val) {
+  val = Number(val);
+  if (val <= 0) return 1;
+  return Math.round(Math.pow(10, val / 50) * 10) / 10;
+}
+
+function speedToSlider(speed) {
+  if (speed <= 1) return 0;
+  return Math.round(50 * Math.log10(speed));
+}
+
+function setSimSpeedFromSlider(val) {
+  simSpeed = sliderToSpeed(val);
+  updateSpeedLabel();
+}
+
+function updateSpeedLabel() {
+  var label = document.getElementById('speed-label');
+  if (label) {
+    var display = simSpeed >= 10 ? Math.round(simSpeed) + 'x' : simSpeed.toFixed(1).replace(/\.0$/, '') + 'x';
+    label.textContent = display;
+  }
+}
+
+// ===================== BUILDING PROTECTION STATUS =====================
+function updateBuildingProtection() {
+  var protectedCount = 0;
+  buildings.forEach(function(b, i) {
+    const rect = buildingRects[i];
+    var isProtected = false;
+    simTowerState.forEach(function(ts, ti) {
+      if (!ts.active || ts.pumpPct <= 0) return;
+      const tPos = towers[ti].marker.getLatLng();
+      const radius = getSprayRadius(ts.pumpPct);
+      var effectiveRadius = radius;
+      if (windSpeedKmh > 0 && windAngleDeg >= 0) {
+        effectiveRadius = radius * (1 + (windSpeedKmh / 30) * 0.15);
+      }
+      if (haversine([tPos.lat, tPos.lng], [b.lat, b.lng]) <= effectiveRadius) isProtected = true;
+    });
+
+    var isInFireZone = false;
+    if (fireActive && fireEllipse) {
+      isInFireZone = isPointInFireZone(b.lat, b.lng);
+    }
+
+    if (isProtected) {
+      rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity: 0.4 + 0.3 * (0.5 + 0.5 * Math.sin(pulsePhase)) });
+      rect._protectionState = 'protected';
+      protectedCount++;
+    } else if (isInFireZone) {
+      rect.setStyle({ color:'#e74c3c', fillColor:'#e74c3c', fillOpacity:0.7 });
+      rect._protectionState = 'atrisk';
+    } else {
+      rect.setStyle({ color:'#888', fillColor:'#aaa', fillOpacity:0.5 });
+      rect._protectionState = 'unprotected';
+    }
+  });
+  document.getElementById('stat-protected').textContent = protectedCount + '/' + buildings.length + ' structures protected';
+}
+
+// ===================== ZONE TRIAGE =====================
+let manualTriage = {};
+
+function toggleZoneTriage(zoneIdx) {
+  if (!timeSimRunning || !simZoneState[zoneIdx]) return;
+  const zs = simZoneState[zoneIdx];
+  if (zs.manualOverride === null) { zs.manualOverride = 'spray'; }
+  else if (zs.manualOverride === 'spray') { zs.manualOverride = 'refill'; }
+  else { zs.manualOverride = null; }
+  updateTriagePanel();
+}
+
+function updateTriagePanel() {
+  if (!timeSimRunning || !simZoneState) return;
+  const panel = document.getElementById('zone-triage-panel');
+  var html = '<div style="margin-bottom:6px;font-size:11px;color:#aaa;">Click to cycle: AUTO > SPRAY > OFF > AUTO</div>';
+  simZoneState.forEach(function(zs, zi) {
+    const color = ZONE_COLORS[zi % ZONE_COLORS.length];
+    var modeText, modeColor, modeIcon;
+    if (zs.manualOverride === null) { modeText='AUTO'; modeColor='#aaa'; modeIcon='\u{1f504}'; }
+    else if (zs.manualOverride === 'spray') { modeText='FORCE ON'; modeColor=color; modeIcon='\u{1f525}'; }
+    else { modeText='FORCE OFF'; modeColor='#666'; modeIcon='\u23f9'; }
+    var supplyLabel = zs.supplyGPM ? ' | ' + zs.supplyGPM + ' GPM' : '';
+    var pipeLabel = zs.nearestPipeId ? ' [' + zs.nearestPipeId + ']' : '';
+    // V10: Per-tower refill rates
+    var towerRefillHtml = '';
+    zs.towerIndices.forEach(function(ti) {
+      var ts = simTowerState[ti];
+      var rGPM = Math.round(ts._refillGPM || 0);
+      var pId = ts._refillPipeId || '?';
+      var cPct = Math.round((ts.cisternGal / CISTERN_MAX) * 100);
+      var cColor = cPct > 60 ? '#3498db' : cPct > 30 ? '#f1c40f' : '#e74c3c';
+      towerRefillHtml += '<div style="font-size:10px;color:#aaa;margin-left:20px;">T' + (ti+1) + ': ' + rGPM + ' GPM from [' + pId + '] <span style="color:' + cColor + ';">' + cPct + '%</span></div>';
+    });
+    html += '<button onclick="toggleZoneTriage(' + zi + ')" style="display:flex; align-items:center; gap:8px; width:100%;padding:6px 10px; margin:4px 0; border:1px solid ' + color + '40;border-radius:6px; background:' + (zs.manualOverride === 'spray' ? color + '20' : 'rgba(255,255,255,0.03)') + ';cursor:pointer; color:#e0e0e0; font-size:12px; text-align:left;">' +
+      '<div style="width:12px;height:12px;border-radius:50%;background:' + color + ';flex-shrink:0;' + (zs.manualOverride==='refill'?'opacity:0.3':'') + '"></div>' +
+      '<span style="flex:1;">Zone ' + (zi+1) + ' (' + zs.towerIndices.length + 't' + supplyLabel + pipeLabel + ')</span>' +
+      '<span style="color:' + modeColor + ';font-weight:600;">' + modeIcon + ' ' + modeText + '</span></button>';
+    html += towerRefillHtml;
+  });
+  panel.innerHTML = html;
+}
+
+function seekTimeline(e) {
+  if (!timeSimRunning) return;
+  const bar = document.getElementById('timeline-bar');
+  const rect = bar.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  simMinute = Math.floor(pct * SIM_DURATION_MIN);
+  simTowerState.forEach(function(ts) { ts.cisternGal = CISTERN_MAX * 0.6; });
+}
+
+function updateSimPanel() {
+  const panel = document.getElementById('sim-live-panel');
+  var totalFlow = 0, totalCistern = 0;
+  simTowerState.forEach(function(ts) {
+    if (ts.active) totalFlow += (ts.pumpPct / 100) * SPRAY_GPM;
+    totalCistern += ts.cisternGal;
+  });
+  const avgCisternPct = towers.length > 0 ? Math.round(totalCistern / (towers.length * CISTERN_MAX) * 100) : 0;
+  var totalMainsRefill = 0;
+  simZoneState.forEach(function(zs) { totalMainsRefill += (zs.supplyGPM || 0); });
+  var f1PipeRef = waterMains.find(function(m) { return m.id === 'F1'; });
+  var f1CapDisplay = f1PipeRef ? Math.round(pipeCapacityGPM(f1PipeRef.diam) * 0.60) : 1200;
+
+  var phaseLabel;
+  if (simMinute < 10) {
+    phaseLabel = '<div style="background:rgba(231,76,60,0.2);border:1px solid #e74c3c;border-radius:4px;padding:4px 8px;margin:4px 0;text-align:center;"><span style="color:#e74c3c;font-weight:700;">PHASE 1: INITIAL SATURATION</span><br><span style="font-size:10px;color:#aaa;">All zones spraying simultaneously | Dynamic refill per zone</span></div>';
+  } else {
+    const relayMin = simMinute - 10;
+    const cyclePos = Math.floor(relayMin / 10);
+    const tz = simZones.length;
+    const az1 = (cyclePos * 2) % tz;
+    const az2 = (cyclePos * 2 + 1) % tz;
+    const nextRotation = 10 - (relayMin % 10);
+    phaseLabel = '<div style="background:rgba(52,152,219,0.15);border:1px solid #3498db;border-radius:4px;padding:4px 8px;margin:4px 0;text-align:center;"><span style="color:#3498db;font-weight:700;">PHASE 2: ZONE RELAY</span><br><span style="font-size:10px;color:#aaa;">Active: Zone ' + (az1+1) + ' + Zone ' + (az2+1) + ' | Next rotation: ' + Math.ceil(nextRotation) + ' min</span></div>';
+  }
+
+  const panelHH = Math.floor(Math.floor(simMinute) / 60);
+  const panelMM = Math.floor(simMinute) % 60;
+  var html = '<div class="sim-stat-row"><span>Sim Time</span><span class="sim-stat-val" style="color:#3498db;">T+' + panelHH + ':' + String(panelMM).padStart(2,'0') + '</span></div>';
+  html += phaseLabel;
+  html += '<div style="margin:6px 0 4px;font-size:10px;color:#FF6B35;text-transform:uppercase;letter-spacing:1px;">Zone Status</div>';
+
+  simZoneState.forEach(function(zs, zi) {
+    const color = ZONE_COLORS[zi % ZONE_COLORS.length];
+    const statusText = zs.phase === 'spray' ? 'SPRAYING' : 'REFILLING';
+    const statusColor = zs.phase === 'spray' ? color : '#666';
+    html += '<div class="sim-zone-row"><div class="sim-zone-dot" style="background:' + color + ';' + (zs.phase==='refill'?'opacity:0.4':'') + '"></div><span>Zone ' + (zi+1) + ':</span><span class="sim-zone-status" style="color:' + statusColor + '">' + statusText + '</span><span style="color:#888;font-size:10px;">(' + zs.towerIndices.length + 't, ' + (zs.supplyGPM||'?') + ' GPM)</span></div>';
+  });
+
+  const resPct = Math.round((reservoirGal / RESERVOIR_MAX_GAL) * 100);
+  const systemCap = 1200;
+  const mainsLoadPct = Math.round((totalMainsRefill / systemCap) * 100);
+  const mainsColor = mainsLoadPct < 50 ? '#2ecc71' : mainsLoadPct < 80 ? '#f1c40f' : '#e74c3c';
+  html += '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;">';
+  html += '<div class="sim-stat-row"><span>Active Flow</span><span class="sim-stat-val">' + Math.round(totalFlow) + ' GPM</span></div>';
+  var cascadeDemand = Math.round(lastCascadeResult.totalDemand || 0);
+  var cascadeF1Cap = Math.round(lastCascadeResult.f1Capacity || f1CapDisplay);
+  var cascadeBottleneck = lastCascadeResult.f1Bottleneck;
+  var demandPctDisplay = cascadeF1Cap > 0 ? Math.round((cascadeDemand / cascadeF1Cap) * 100) : 0;
+  var demandColor = demandPctDisplay < 60 ? '#2ecc71' : demandPctDisplay < 85 ? '#f1c40f' : '#e74c3c';
+  html += '<div class="sim-stat-row"><span>System Demand</span><span class="sim-stat-val" style="color:' + demandColor + '">' + cascadeDemand + ' / ' + cascadeF1Cap + ' GPM (' + demandPctDisplay + '%)</span></div>';
+  if (cascadeBottleneck) {
+    html += '<div style="color:#e74c3c;font-size:10px;text-align:center;margin:2px 0;background:rgba(231,76,60,0.15);border:1px solid rgba(231,76,60,0.4);border-radius:4px;padding:3px;">F1 BOTTLENECK ACTIVE - cascade throttling all towers</div>';
+  }
+  html += '<div class="sim-stat-row"><span>Evacuation</span><span class="sim-stat-val" style="color:' + (evacuationMode ? '#e74c3c' : '#888') + '">' + (evacuationMode ? 'ON (S=0.01)' : 'OFF (S=0.005)') + '</span></div>';
+  html += '<div class="sim-stat-row"><span>Reservoir</span><span class="sim-stat-val" style="color:' + (resPct>60?'#3498db':resPct>30?'#f1c40f':'#e74c3c') + '">' + resPct + '%</span></div>';
+  html += '<div class="sim-stat-row"><span>Avg Cistern</span><span class="sim-stat-val">' + avgCisternPct + '% <span class="cistern-bar-mini"><span class="cistern-bar-mini-fill" style="width:' + avgCisternPct + '%;background:' + (avgCisternPct>30?'#3498db':'#e74c3c') + ';"></span></span></span></div>';
+  html += '</div>';
+
+  panel.innerHTML = html;
+}
+
+// ===================== FIRE MODELING =====================
+let ignitionPoint = null;
+let ignitionMarker = null;
+let fireActive = false;
+let fireEnabled = true;
+let fireEllipse = null;
+let fireLayer = null;
+let emberMarkers = [];
+let fireStartMinute = 0;
+
+let spotFires = [];
+let spotFireIdCounter = 0;
+let spotFireLayers = [];
+const SPOT_FIRE_IGNITION_PROB = 0.08;
+const MAX_SPOT_FIRES = 8;
+const SPOT_FIRE_BASE_ROS = 1.5;
+
+function setIgnitionPoint(lat, lng) {
+  if (ignitionMarker) map.removeLayer(ignitionMarker);
+  ignitionPoint = { lat: lat, lng: lng };
+  const fireIcon = L.divIcon({
+    html:'<div style="font-size:24px;text-shadow:0 0 8px #ff4400;">&#x1f525;</div>',
+    iconSize:[24,24], iconAnchor:[12,12], className:''
+  });
+  ignitionMarker = L.marker([lat, lng], { icon: fireIcon })
+    .bindPopup('<b>Ignition Point</b><br>' + lat.toFixed(4) + 'N, ' + Math.abs(lng).toFixed(4) + 'W<br><button onclick="removeIgnition()" style="margin-top:4px;padding:3px 8px;background:#c0392b;color:#fff;border:none;border-radius:3px;cursor:pointer;">Remove</button>')
+    .addTo(map);
+  var btn = document.getElementById('btn-fire-toggle');
+  btn.style.display = 'block';
+  btn.style.borderColor = '#e74c3c';
+  btn.style.color = '#e74c3c';
+}
+
+function removeIgnition() {
+  if (ignitionMarker) { map.removeLayer(ignitionMarker); ignitionMarker = null; }
+  ignitionPoint = null;
+  clearFireVisuals();
+  document.getElementById('btn-fire-toggle').style.display = 'none';
+}
+
+function toggleFireBehavior() {
+  fireEnabled = !fireEnabled;
+  var btn = document.getElementById('btn-fire-toggle');
+  if (fireEnabled) {
+    btn.textContent = '\u{1f525} Fire Model: ON';
+    btn.style.borderColor = '#e74c3c';
+    btn.style.color = '#e74c3c';
+  } else {
+    btn.textContent = '\u{1f525} Fire Model: OFF';
+    btn.style.borderColor = '#666';
+    btn.style.color = '#666';
+    clearFireVisuals();
+  }
+}
+
+function startFire() {
+  if (!ignitionPoint) return;
+  fireActive = true;
+  fireStartMinute = simMinute;
+  fireEllipse = {
+    centerLat: ignitionPoint.lat,
+    centerLng: ignitionPoint.lng,
+    semiMajor: 10,
+    semiMinor: 10,
+    _blockedRays: null
+  };
+  document.getElementById('fire-section').style.display = 'block';
+}
+
+function clearFireVisuals() {
+  fireActive = false;
+  if (fireLayer) { layers.fire.removeLayer(fireLayer); fireLayer = null; }
+  emberMarkers.forEach(function(m) { layers.fire.removeLayer(m); });
+  emberMarkers = [];
+  spotFireLayers.forEach(function(l) { layers.fire.removeLayer(l); });
+  spotFireLayers = [];
+  spotFires = [];
+  spotFireIdCounter = 0;
+}
+
+function isPointInEllipse(lat, lng, cLat, cLng, semiMaj, semiMin, angle) {
+  const dx = (lng - cLng) * 111320 * Math.cos(cLat * Math.PI / 180);
+  const dy = (lat - cLat) * 111320;
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const rx = dx * cos - dy * sin;
+  const ry = dx * sin + dy * cos;
+  return (rx * rx) / ((semiMin || 1) * (semiMin || 1)) + (ry * ry) / ((semiMaj || 1) * (semiMaj || 1)) <= 1;
+}
+
+function fireSimTick() {
+  if (!fireActive || !ignitionPoint || !fireEllipse || !fireEnabled) return;
+
+  const speedMult = parseFloat(document.getElementById('fire-speed-mult').value) || 2;
+  const minutesElapsed = simMinute - fireStartMinute;
+  const baseROS = 2.0;
+  const windFactor = Math.exp(0.115 * windSpeedKmh);
+  const spreadRate = baseROS * windFactor * speedMult;
+  const lb_ratio = 1 + 0.25 * windSpeedKmh;
+  const semiMajor = spreadRate * minutesElapsed;
+  const semiMinor = semiMajor / lb_ratio;
+  const windRad = windAngleDeg >= 0 ? windAngleDeg * Math.PI / 180 : 0;
+  const centerShift = semiMajor * 0.3;
+  const fireCenterLat = ignitionPoint.lat + (centerShift * Math.cos(windRad)) / 111320;
+  const fireCenterLng = ignitionPoint.lng + (centerShift * Math.sin(windRad)) / (111320 * Math.cos(ignitionPoint.lat * Math.PI / 180));
+
+  fireEllipse.centerLat = fireCenterLat;
+  fireEllipse.centerLng = fireCenterLng;
+  fireEllipse.semiMajor = semiMajor;
+  fireEllipse.semiMinor = semiMinor;
+  fireEllipse.angle = windRad;
+
+  if (fireLayer) { layers.fire.removeLayer(fireLayer); fireLayer = null; }
+  emberMarkers.forEach(function(m) { layers.fire.removeLayer(m); });
+  emberMarkers = [];
+
+  if (semiMajor < 5) return;
+
+  const numRays = 120;
+  const firePts = [];
+  const cosLat = Math.cos(fireCenterLat * Math.PI / 180);
+
+  if (!fireEllipse._blockedRays) {
+    fireEllipse._blockedRays = new Float32Array(numRays);
+  }
+  const blockedRays = fireEllipse._blockedRays;
+
+  for (var i = 0; i < numRays; i++) {
+    const a = (2 * Math.PI * i) / numRays;
+    const ex = fireEllipse.semiMinor * Math.cos(a);
+    const ey = fireEllipse.semiMajor * Math.sin(a);
+    const ellipseDist = Math.sqrt(ex * ex + ey * ey);
+    const rx = ex * Math.cos(windRad) - ey * Math.sin(windRad);
+    const ry = ex * Math.sin(windRad) + ey * Math.cos(windRad);
+
+    var maxAdvance = ellipseDist;
+    const steps = 20;
+
+    for (var s = 1; s <= steps; s++) {
+      const frac = s / steps;
+      const checkRx = rx * frac;
+      const checkRy = ry * frac;
+      const checkLat = fireCenterLat + checkRy / 111320;
+      const checkLng = fireCenterLng + checkRx / (111320 * cosLat);
+
+      var inSpray = false;
+      if (timeSimRunning && simTowerState.length > 0) {
+        for (var ti = 0; ti < simTowerState.length; ti++) {
+          var ts = simTowerState[ti];
+          const tPos = towers[ti].marker.getLatLng();
+          const baseRadius = 40;
+          const activeRadius = (ts.active && ts.pumpPct > 0) ? getSprayRadius(ts.pumpPct) : baseRadius;
+          var effectiveRadius = activeRadius;
+          if (windSpeedKmh > 0 && windAngleDeg >= 0) effectiveRadius *= (1 + (windSpeedKmh / 30) * 0.15);
+          if (haversine([tPos.lat, tPos.lng], [checkLat, checkLng]) <= effectiveRadius) {
+            inSpray = true; break;
+          }
+        }
+      } else if (towers.length > 0) {
+        for (var ti = 0; ti < towers.length; ti++) {
+          const tPos = towers[ti].marker.getLatLng();
+          var effectiveRadius = 40;
+          if (windSpeedKmh > 0 && windAngleDeg >= 0) effectiveRadius *= (1 + (windSpeedKmh / 30) * 0.15);
+          if (haversine([tPos.lat, tPos.lng], [checkLat, checkLng]) <= effectiveRadius) {
+            inSpray = true; break;
+          }
+        }
+      }
+
+      if (inSpray) {
+        maxAdvance = Math.max(ellipseDist * frac * 0.85, ellipseDist * 0.05);
+        blockedRays[i] = Math.max(blockedRays[i], maxAdvance);
+        break;
+      }
+    }
+
+    if (blockedRays[i] > 0 && maxAdvance > blockedRays[i]) {
+      const blockFrac = blockedRays[i] / ellipseDist;
+      const bLat = fireCenterLat + (ry * blockFrac) / 111320;
+      const bLng = fireCenterLng + (rx * blockFrac) / (111320 * cosLat);
+      var stillBlocked = false;
+      for (var ti = 0; ti < towers.length; ti++) {
+        const tPos = towers[ti].marker.getLatLng();
+        var radius = 40;
+        if (timeSimRunning && simTowerState[ti] && simTowerState[ti].active && simTowerState[ti].pumpPct > 0) {
+          radius = getSprayRadius(simTowerState[ti].pumpPct);
+        }
+        radius *= (1 + (windSpeedKmh > 0 ? (windSpeedKmh / 30) * 0.15 : 0));
+        if (haversine([tPos.lat, tPos.lng], [bLat, bLng]) <= radius * 1.2) {
+          stillBlocked = true; break;
+        }
+      }
+      if (stillBlocked) {
+        maxAdvance = blockedRays[i];
+      } else {
+        blockedRays[i] = 0;
+      }
+    }
+
+    const advanceFrac = ellipseDist > 0 ? maxAdvance / ellipseDist : 0;
+    const finalRx = rx * advanceFrac;
+    const finalRy = ry * advanceFrac;
+    firePts.push([fireCenterLat + finalRy / 111320, fireCenterLng + finalRx / (111320 * cosLat)]);
+  }
+
+  fireLayer = L.polygon(firePts, {
+    color: '#ff4400',
+    fillColor: '#ff4400',
+    fillOpacity: 0.25 + 0.1 * Math.sin(pulsePhase * 2),
+    weight: 3, opacity: 0.8,
+  });
+  layers.fire.addLayer(fireLayer);
+
+  if (timeSimRunning && towers.length > 0) {
+    const ghostPts = [];
+    for (var i = 0; i < numRays; i++) {
+      const a = (2 * Math.PI * i) / numRays;
+      const ex = fireEllipse.semiMinor * Math.cos(a);
+      const ey = fireEllipse.semiMajor * Math.sin(a);
+      const grx = ex * Math.cos(windRad) - ey * Math.sin(windRad);
+      const gry = ex * Math.sin(windRad) + ey * Math.cos(windRad);
+      ghostPts.push([fireCenterLat + gry / 111320, fireCenterLng + grx / (111320 * cosLat)]);
+    }
+    const ghostLayer = L.polygon(ghostPts, {
+      color: '#ff440044', fillColor: 'transparent', fillOpacity: 0,
+      weight: 1.5, opacity: 0.3, dashArray: '8,6'
+    });
+    layers.fire.addLayer(ghostLayer);
+    emberMarkers.push(ghostLayer);
+  }
+
+  const emberDist = 100 + (Math.exp(0.08 * windSpeedKmh) - 1) * 300;
+  const numEmbers = Math.min(30, Math.floor(minutesElapsed / 2) + 3);
+  const seededRand = (function() { var s = simMinute * 137 + 42; return function() { s = (s*16807)%2147483647; return s/2147483647; }; })();
+
+  for (var i = 0; i < numEmbers; i++) {
+    const dist = (0.3 + seededRand() * 0.7) * emberDist;
+    const scatter = (seededRand() - 0.5) * 60 * Math.PI / 180;
+    const angle = windRad + scatter;
+    const headLat = fireCenterLat + (semiMajor * Math.cos(windRad)) / 111320;
+    const headLng = fireCenterLng + (semiMajor * Math.sin(windRad)) / (111320 * Math.cos(fireCenterLat * Math.PI / 180));
+    const eLat = headLat + (dist * Math.cos(angle)) / 111320;
+    const eLng = headLng + (dist * Math.sin(angle)) / (111320 * Math.cos(headLat * Math.PI / 180));
+
+    var neutralized = false;
+    simTowerState.forEach(function(ts, ti) {
+      if (!ts.active || ts.pumpPct <= 0) return;
+      const tPos = towers[ti].marker.getLatLng();
+      const radius = getSprayRadius(ts.pumpPct);
+      var effectiveRadius = radius;
+      if (windSpeedKmh > 0 && windAngleDeg >= 0) effectiveRadius = radius * (1 + (windSpeedKmh / 30) * 0.15);
+      if (haversine([tPos.lat, tPos.lng], [eLat, eLng]) <= effectiveRadius) neutralized = true;
+    });
+
+    const emberIcon = L.divIcon({
+      html: '<div class="ember-dot" style="' + (neutralized ? 'background:#888;box-shadow:none;animation:none;opacity:0.4;' : '') + '"></div>',
+      iconSize: [6, 6], iconAnchor: [3, 3], className: ''
+    });
+    const em = L.marker([eLat, eLng], { icon: emberIcon, interactive: false });
+    layers.fire.addLayer(em);
+    emberMarkers.push(em);
+
+    if (!neutralized && spotFires.length < MAX_SPOT_FIRES && seededRand() < SPOT_FIRE_IGNITION_PROB) {
+      const inMain = isPointInEllipse(eLat, eLng, fireCenterLat, fireCenterLng, semiMajor * 1.2, semiMinor * 1.2, windRad);
+      const inExisting = spotFires.some(function(sf) { return !sf.merged && haversine([sf.lat, sf.lng], [eLat, eLng]) < 50; });
+      if (!inMain && !inExisting) {
+        spotFires.push({ lat: eLat, lng: eLng, startMinute: simMinute, id: spotFireIdCounter++, merged: false });
+      }
+    }
+  }
+
+  spotFireLayers.forEach(function(l) { layers.fire.removeLayer(l); });
+  spotFireLayers = [];
+
+  for (var fi = 0; fi < spotFires.length; fi++) {
+    var sf = spotFires[fi];
+    if (sf.merged) continue;
+    const sfElapsed = simMinute - sf.startMinute;
+    if (sfElapsed < 1) continue;
+    const sfSpreadRate = SPOT_FIRE_BASE_ROS * windFactor * speedMult;
+    const sfSemiMajor = sfSpreadRate * sfElapsed;
+    const sfSemiMinor = sfSemiMajor / lb_ratio;
+    if (sfSemiMajor < 3) continue;
+    const sfShift = sfSemiMajor * 0.3;
+    const sfCLat = sf.lat + (sfShift * Math.cos(windRad)) / 111320;
+    const sfCLng = sf.lng + (sfShift * Math.sin(windRad)) / (111320 * Math.cos(sf.lat * Math.PI / 180));
+    if (isPointInEllipse(sfCLat, sfCLng, fireCenterLat, fireCenterLng, semiMajor, semiMinor, windRad)) {
+      sf.merged = true; continue;
+    }
+    const sfPts = [];
+    for (var j = 0; j < 32; j++) {
+      const a = (2 * Math.PI * j) / 32;
+      const ex = sfSemiMinor * Math.cos(a);
+      const ey = sfSemiMajor * Math.sin(a);
+      const srx = ex * Math.cos(windRad) - ey * Math.sin(windRad);
+      const sry = ex * Math.sin(windRad) + ey * Math.cos(windRad);
+      sfPts.push([sfCLat + sry / 111320, sfCLng + srx / (111320 * Math.cos(sfCLat * Math.PI / 180))]);
+    }
+
+    const sfLayer = L.polygon(sfPts, {
+      color: '#ff6600', fillColor: '#ff6600',
+      fillOpacity: 0.3 + 0.1 * Math.sin(pulsePhase * 3),
+      weight: 2, opacity: 0.7, dashArray: '5,5'
+    });
+    layers.fire.addLayer(sfLayer);
+    spotFireLayers.push(sfLayer);
+
+    const sfIcon = L.divIcon({
+      html: '<div style="font-size:14px;text-shadow:0 0 4px #ff4400;">&#x1f525;</div>',
+      iconSize: [14, 14], iconAnchor: [7, 7], className: ''
+    });
+    const sfMarker = L.marker([sf.lat, sf.lng], { icon: sfIcon, interactive: false });
+    layers.fire.addLayer(sfMarker);
+    spotFireLayers.push(sfMarker);
+  }
+
+  const activeSpotFires = spotFires.filter(function(sf) { return !sf.merged; }).length;
+
+  var fireInfo = document.getElementById('fire-info');
+  const distToTown = haversine([ignitionPoint.lat, ignitionPoint.lng], LYTTON);
+  const frontDist = semiMajor;
+  const remaining = Math.max(0, distToTown - frontDist);
+  fireInfo.innerHTML =
+    '<div class="sim-stat-row"><span>Fire spread</span><span class="sim-stat-val" style="color:#e74c3c;">' + Math.round(frontDist) + 'm</span></div>' +
+    '<div class="sim-stat-row"><span>Distance to town</span><span class="sim-stat-val" style="color:' + (remaining<100?'#e74c3c':'#f1c40f') + '">' + Math.round(remaining) + 'm</span></div>' +
+    '<div class="sim-stat-row"><span>Ember range</span><span class="sim-stat-val" style="color:#ff8800;">' + Math.round(emberDist) + 'm</span></div>' +
+    '<div class="sim-stat-row"><span>Spot fires</span><span class="sim-stat-val" style="color:' + (activeSpotFires>0?'#ff6600':'#888') + '">' + activeSpotFires + ' active</span></div>' +
+    '<div class="sim-stat-row"><span>Spread rate</span><span class="sim-stat-val">' + (spreadRate*60/1000).toFixed(2) + ' km/h</span></div>' +
+    '<div class="sim-stat-row"><span>Fire type</span><span class="sim-stat-val" style="color:' + (spreadRate>30?'#e74c3c':spreadRate>10?'#f1c40f':'#ff8800') + '">' + (spreadRate>50?'EXTREME CROWN':spreadRate>20?'ACTIVE CROWN':spreadRate>5?'SURFACE + CROWN':'SURFACE') + '</span></div>';
+}
+
+function isPointInFireZone(lat, lng) {
+  if (!fireEllipse || !fireActive || !fireEnabled) return false;
+  if (timeSimRunning) {
+    for (var ti = 0; ti < simTowerState.length; ti++) {
+      var ts = simTowerState[ti];
+      if (!ts.active || ts.pumpPct <= 0) continue;
+      var tPos = towers[ti].marker.getLatLng();
+      var radius = getSprayRadius(ts.pumpPct);
+      var effectiveRadius = radius * (1 + (windSpeedKmh > 0 ? (windSpeedKmh / 30) * 0.15 : 0));
+      if (haversine([tPos.lat, tPos.lng], [lat, lng]) <= effectiveRadius) return false;
+    }
+  }
+  var dx = (lng - fireEllipse.centerLng) * 111320 * Math.cos(fireEllipse.centerLat * Math.PI / 180);
+  var dy = (lat - fireEllipse.centerLat) * 111320;
+  var cos = Math.cos(-fireEllipse.angle);
+  var sin = Math.sin(-fireEllipse.angle);
+  var rx = dx * cos - dy * sin;
+  var ry = dx * sin + dy * cos;
+  var aa = fireEllipse.semiMinor || 1;
+  var bb = fireEllipse.semiMajor || 1;
+  var inEllipse = (rx*rx)/(aa*aa) + (ry*ry)/(bb*bb) <= 1;
+
+  var emberDist = 100 + (windSpeedKmh / 30) * 1900;
+  var windRad = windAngleDeg >= 0 ? windAngleDeg * Math.PI / 180 : 0;
+  var frontLat = fireEllipse.centerLat + (fireEllipse.semiMajor * Math.cos(windRad)) / 111320;
+  var frontLng = fireEllipse.centerLng + (fireEllipse.semiMajor * Math.sin(windRad)) / (111320 * Math.cos(fireEllipse.centerLat * Math.PI / 180));
+  var distFromFront = haversine([frontLat, frontLng], [lat, lng]);
+  var inEmberZone = distFromFront <= emberDist;
+
+  if (inEllipse || inEmberZone) return true;
+
+  for (var fi = 0; fi < spotFires.length; fi++) {
+    var sf = spotFires[fi];
+    if (sf.merged) continue;
+    var sfElapsed = simMinute - sf.startMinute;
+    if (sfElapsed < 1) continue;
+    var sfWindFactor = Math.exp(0.115 * windSpeedKmh);
+    var sfSpeedMult = parseFloat(document.getElementById('fire-speed-mult').value) || 2;
+    var sfSemiMajor = SPOT_FIRE_BASE_ROS * sfWindFactor * sfSpeedMult * sfElapsed;
+    var sfSemiMinor = sfSemiMajor / (1 + 0.25 * windSpeedKmh);
+    var sfShift = sfSemiMajor * 0.3;
+    var sfCLat = sf.lat + (sfShift * Math.cos(windRad)) / 111320;
+    var sfCLng = sf.lng + (sfShift * Math.sin(windRad)) / (111320 * Math.cos(sf.lat * Math.PI / 180));
+    if (isPointInEllipse(lat, lng, sfCLat, sfCLng, sfSemiMajor, sfSemiMinor, windRad)) return true;
+  }
+  return false;
+}
+
+// ===================== SCADA PANEL =====================
+let scadaVisible = false;
+
+function toggleSCADA() {
+  scadaVisible = !scadaVisible;
+  document.getElementById('scada-panel').style.display = scadaVisible ? 'block' : 'none';
+  if (scadaVisible) updateSCADAPanel();
+}
+
+function updateSCADAPanel() {
+  const n = towers.length;
+  const activeTowers = timeSimRunning ? simTowerState.filter(function(ts) { return ts.active; }).length : 0;
+  var totalFlow = 0;
+  if (timeSimRunning) {
+    simTowerState.forEach(function(ts) { if (ts.active) totalFlow += (ts.pumpPct / 100) * SPRAY_GPM; });
+  }
+  const resPct = Math.round((reservoirGal / RESERVOIR_MAX_GAL) * 100);
+  const activeZones = timeSimRunning ? simZoneState.filter(function(zs) { return zs.phase === 'spray'; }).length : 0;
+  const demandRatio = n > 0 ? totalFlow / (n * SPRAY_GPM) : 0;
+  const pressure = Math.max(30, 70 - demandRatio * 25 + (Math.sin(pulsePhase * 3) * 2));
+  const pressureAlert = pressure < 45 ? 'alert-red' : pressure < 55 ? 'alert-yellow' : '';
+
+  var totalMainsRefill = 0;
+  if (timeSimRunning && simZoneState) {
+    simZoneState.forEach(function(zs) { totalMainsRefill += (zs.supplyGPM || 500); });
+  } else {
+    totalMainsRefill = (simZones.length || computeZones().length) * 500;
+  }
+
+  var html =
+    '<div class="scada-meter ' + pressureAlert + '"><div class="sm-label">System Pressure</div><div class="sm-value">' + pressure.toFixed(1) + '</div><div class="sm-unit">PSI</div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Main Flow Rate</div><div class="sm-value" style="color:#33ff33;">' + Math.round(totalFlow) + '</div><div class="sm-unit">GPM</div></div>' +
+    '<div class="scada-meter ' + (resPct<30?'alert-red':resPct<60?'alert-yellow':'') + '"><div class="sm-label">Reservoir Level</div><div class="sm-value">' + resPct + '</div><div class="sm-unit">%</div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Active Towers</div><div class="sm-value" style="color:#33ff33;">' + activeTowers + '/' + n + '</div><div class="sm-unit"></div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Active Zones</div><div class="sm-value" style="color:#33ff33;">' + activeZones + '/' + (simZones.length || computeZones().length) + '</div><div class="sm-unit"></div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Source Inflow</div><div class="sm-value" style="color:#33ff33;">' + SOURCE_INFLOW_GPM + '</div><div class="sm-unit">GPM</div></div>' +
+    '<div class="scada-meter ' + (lastCascadeResult.f1Bottleneck ? 'alert-red' : '') + '"><div class="sm-label">System Demand (F1)</div><div class="sm-value" style="color:' + (lastCascadeResult.f1Bottleneck ? '#ff3333' : '#ffaa00') + ';">' + Math.round(lastCascadeResult.totalDemand || totalMainsRefill) + '/' + Math.round(lastCascadeResult.f1Capacity || 1200) + '</div><div class="sm-unit">GPM (cascade)</div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Evacuation Mode</div><div class="sm-value" style="color:' + (evacuationMode ? '#ff3333' : '#448844') + ';">' + (evacuationMode ? 'ON' : 'OFF') + '</div><div class="sm-unit">S=' + getHydraulicSlope() + '</div></div>';
+
+  if (timeSimRunning && simZoneState.length > 0) {
+    html += '<div style="grid-column:1/-1;border-top:1px solid #1a5c1a;padding-top:8px;margin-top:4px;">';
+    html += '<div style="font-size:10px;color:#448844;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Zone Flow Meters</div>';
+    simZoneState.forEach(function(zs, zi) {
+      var zoneFlow = 0;
+      zs.towerIndices.forEach(function(ti) {
+        var ts = simTowerState[ti];
+        if (ts && ts.active) zoneFlow += (ts.pumpPct / 100) * SPRAY_GPM;
+      });
+      var valveOpen = zs.phase === 'spray';
+      var zoneRefill = 0;
+      zs.towerIndices.forEach(function(ti) { zoneRefill += (simTowerState[ti]._refillGPM || 0); });
+      var zonePipeId = zs.nearestPipeId || '?';
+      var zonePipeCap = 0;
+      var zPipe = waterMains.find(function(m) { return m.id === zonePipeId; });
+      if (zPipe) zonePipeCap = Math.round(pipeCapacityGPM(zPipe.diam) * 0.60);
+      var pipeUtil = zonePipeCap > 0 ? Math.round(((lastCascadeResult.pipeLoads && lastCascadeResult.pipeLoads[zonePipeId]) || 0) / zonePipeCap * 100) : 0;
+      html += '<div class="scada-zone-row"><span class="scada-valve ' + (valveOpen ? 'open' : 'closed') + '"></span><span style="color:' + ZONE_COLORS[zi % ZONE_COLORS.length] + ';">Z' + (zi+1) + '</span><span style="flex:1;">' + zs.towerIndices.length + 't | Refill: ' + Math.round(zoneRefill) + ' GPM | [' + zonePipeId + '] ' + pipeUtil + '%</span><span style="color:' + (valveOpen ? '#33ff33' : '#666') + ';font-weight:700;">' + Math.round(zoneFlow) + ' GPM</span></div>';
+    });
+    html += '</div>';
+  }
+
+  document.getElementById('scada-content').innerHTML = html;
+}
+
+// ===================== BEFORE/AFTER (disabled) =====================
+function toggleBeforeAfter() { return; }
+function updateBASlider() { return; }
+function closeBeforeAfter() { return; }
+
+// ===================== DRAGGABLE SIDEBAR PANELS =====================
+function initDraggablePanels() {
+  const sidebar = document.getElementById('sidebar');
+  const sections = sidebar.querySelectorAll('.section');
+  var dragSrc = null;
+
+  sections.forEach(function(sec) {
+    const handle = sec.querySelector('.drag-handle');
+    if (!handle) return;
+
+    handle.addEventListener('dragstart', function(e) {
+      dragSrc = sec;
+      sec.style.opacity = '0.5';
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+
+    handle.addEventListener('dragend', function() {
+      sec.style.opacity = '1';
+      sections.forEach(function(s) { s.classList.remove('drag-over'); });
+      savePanelOrder();
+    });
+
+    sec.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      sec.classList.add('drag-over');
+    });
+
+    sec.addEventListener('dragleave', function() {
+      sec.classList.remove('drag-over');
+    });
+
+    sec.addEventListener('drop', function(e) {
+      e.preventDefault();
+      sec.classList.remove('drag-over');
+      if (dragSrc && dragSrc !== sec) {
+        var allSections = Array.from(sidebar.querySelectorAll('.section'));
+        var srcIdx = allSections.indexOf(dragSrc);
+        var tgtIdx = allSections.indexOf(sec);
+        if (srcIdx < tgtIdx) { sec.after(dragSrc); }
+        else { sec.before(dragSrc); }
+      }
+    });
+  });
+
+  restorePanelOrder();
+}
+
+function toggleSectionCollapse(headerEl) {
+  headerEl.closest('.section').classList.toggle('collapsed');
+  savePanelOrder();
+}
+
+function savePanelOrder() {
+  var sidebar = document.getElementById('sidebar');
+  var sections = sidebar.querySelectorAll('.section[data-panel]');
+  var order = [];
+  sections.forEach(function(s) {
+    order.push({ id: s.dataset.panel, collapsed: s.classList.contains('collapsed') });
+  });
+  try { localStorage.setItem('hydrodome-panel-order', JSON.stringify(order)); } catch(e) {}
+}
+
+function restorePanelOrder() {
+  try {
+    var saved = JSON.parse(localStorage.getItem('hydrodome-panel-order'));
+    if (!saved || !saved.length) return;
+    var sidebar = document.getElementById('sidebar');
+    saved.forEach(function(item) {
+      var sec = sidebar.querySelector('.section[data-panel="' + item.id + '"]');
+      if (sec && item.collapsed) sec.classList.add('collapsed');
+    });
+    var orderedSections = [];
+    saved.forEach(function(item) {
+      var sec = sidebar.querySelector('.section[data-panel="' + item.id + '"]');
+      if (sec) orderedSections.push(sec);
+    });
+    sidebar.querySelectorAll('.section[data-panel]').forEach(function(sec) {
+      if (orderedSections.indexOf(sec) === -1) orderedSections.push(sec);
+    });
+    orderedSections.forEach(function(sec) { sidebar.appendChild(sec); });
+  } catch(e) {}
+}
+
+// ===================== PDF EXPORT =====================
+async function exportPDF() {
+  var n = towers.length;
+  if (n === 0) { alert('Place some towers first.'); return; }
+  var btn = document.querySelector('[onclick="exportPDF()"]');
+  btn.textContent = 'Generating PDF...'; btn.disabled = true;
+
+  try {
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF('p', 'mm', 'a4');
+    var W = 210, H = 297, margin = 15;
+    var green = [45, 80, 22], orange = [255, 107, 53];
+
+    doc.setFillColor.apply(doc, green);
+    doc.rect(0, 0, W, 35, 'F');
+    doc.setFillColor.apply(doc, orange);
+    doc.rect(0, 35, W, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.setTextColor(255, 255, 255);
+    doc.text('HYDRODOME', margin, 18);
+    doc.setFontSize(11);
+    doc.setTextColor(255, 200, 150);
+    doc.text('WILDFIRE DEFENSE SYSTEM -- FEASIBILITY REPORT', margin, 28);
+
+    var y = 48;
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Harrison Hot Springs, BC  |  Generated: ' + new Date().toLocaleDateString(), margin, y);
+    y += 10;
+
+    try {
+      var mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, scale: 1.5, logging: false });
+      var imgData = mapCanvas.toDataURL('image/jpeg', 0.85);
+      var imgW = W - margin * 2;
+      var imgH = imgW * 0.55;
+      doc.addImage(imgData, 'JPEG', margin, y, imgW, imgH);
+      y += imgH + 8;
+    } catch(e) {
+      doc.setTextColor(150, 0, 0);
+      doc.text('[Map screenshot unavailable]', margin, y);
+      y += 10;
+    }
+
+    doc.setFillColor.apply(doc, green);
+    doc.rect(margin, y, W - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('SYSTEM OVERVIEW', margin + 3, y + 5);
+    y += 12;
+
+    var zones = computeZones();
+    var items = [
+      ['Total Towers', '' + n],
+      ['Zones', zones.length + ' (' + zones.map(function(z) { return z.length + ' towers'; }).join(', ') + ')'],
+      ['Microturbines', zones.length + ' x Capstone C65'],
+      ['Coverage Area', Math.min(n * 0.50, TOWN_AREA_HA * 1.2).toFixed(1) + ' hectares'],
+      ['Max Spray Demand', n * 200 + ' GPM'],
+      ['Duty-Cycled Demand', n * 100 + ' GPM'],
+    ];
+    doc.setFontSize(10);
+    items.forEach(function(kv) {
+      doc.setTextColor(80, 80, 80);
+      doc.setFont('helvetica', 'normal');
+      doc.text(kv[0] + ':', margin + 2, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 30, 30);
+      doc.text(kv[1], margin + 60, y);
+      y += 6;
+    });
+    y += 4;
+
+    doc.setFillColor.apply(doc, green);
+    doc.rect(margin, y, W - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('HYDRAULIC & CISTERN ANALYSIS', margin + 3, y + 5);
+    y += 12;
+
+    var hydItems = [
+      ['Cistern per Tower', '8,000 gal (subgrade)'],
+      ['Total Storage', (n * 8000).toLocaleString() + ' gal'],
+      ['Spray Runtime', '40 min full / 80 min with 50% duty'],
+      ['Reservoir', '1.3M litres (343k gal)'],
+      ['Source Inflow', '800 GPM'],
+    ];
+    doc.setFontSize(10);
+    hydItems.forEach(function(kv) {
+      doc.setTextColor(80, 80, 80);
+      doc.setFont('helvetica', 'normal');
+      doc.text(kv[0] + ':', margin + 2, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 30, 30);
+      doc.text(kv[1], margin + 60, y);
+      y += 6;
+    });
+    y += 4;
+
+    doc.setFillColor.apply(doc, green);
+    doc.rect(margin, y, W - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOWER LOCATIONS', margin + 3, y + 5);
+    y += 12;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(80, 80, 80);
+    doc.text('#', margin + 2, y);
+    doc.text('Latitude', margin + 15, y);
+    doc.text('Longitude', margin + 55, y);
+    doc.text('Zone', margin + 100, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(40, 40, 40);
+    towers.forEach(function(t, i) {
+      if (y > 270) { doc.addPage(); y = 20; }
+      var p = t.marker.getLatLng();
+      var zi = zones.findIndex(function(z) { return z.includes(i); });
+      doc.text('' + (i + 1), margin + 2, y);
+      doc.text(p.lat.toFixed(5) + ' N', margin + 15, y);
+      doc.text(Math.abs(p.lng).toFixed(5) + ' W', margin + 55, y);
+      doc.text('Zone ' + (zi + 1), margin + 100, y);
+      y += 5;
+    });
+    y += 6;
+
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFillColor.apply(doc, orange);
+    doc.rect(margin, y, W - margin * 2, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+    doc.text('COST VS DAMAGE ANALYSIS', margin + 3, y + 5);
+    y += 14;
+
+    var covered = 0;
+    buildings.forEach(function(b) {
+      if (towers.some(function(t) {
+        var p = t.marker.getLatLng();
+        return haversine([p.lat, p.lng], [b.lat, b.lng]) <= 40;
+      })) covered++;
+    });
+    var cost = n * 134000;
+    var costStr = '$' + (cost / 1000000).toFixed(1) + 'M CAD';
+    var roi = Math.round(500000000 / cost);
+
+    var costItems2 = [
+      ['System Cost', costStr],
+      ['Structures Protected', covered + '/' + buildings.length + ' (' + Math.round(covered/buildings.length*100) + '%)'],
+      ['Estimated Loss Prevention', '$500M+'],
+      ['Return on Investment', roi + ':1'],
+    ];
+    doc.setFontSize(11);
+    costItems2.forEach(function(kv) {
+      doc.setTextColor(80, 80, 80);
+      doc.setFont('helvetica', 'normal');
+      doc.text(kv[0] + ':', margin + 2, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor.apply(doc, orange);
+      doc.text(kv[1], margin + 70, y);
+      y += 8;
+    });
+
+    y = H - 15;
+    doc.setDrawColor.apply(doc, green);
+    doc.line(margin, y - 5, W - margin, y - 5);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text('(c) 2025 Carmanah Wildfire Defense -- HydroDome Wildfire Defense System', margin, y);
+    doc.text('Nelson Big Gun 100 Series | 0.90" Taper Bore | 24 deg | 70 PSI | 200 GPM', margin, y + 4);
+
+    doc.save('HydroDome_Harrison_Report.pdf');
+  } catch(e) {
+    console.error('PDF export error:', e);
+    alert('PDF generation failed. Try the text export instead.');
+  }
+
+  btn.textContent = 'Export PDF'; btn.disabled = false;
+}
+
+// ===================== RECOMMENDED LAYOUT =====================
+function loadRecommended() {
+  // Blank slate - place towers manually for Harrison Hot Springs
+  alert('Harrison Hot Springs: Use Place Tower mode to manually position towers.\nThis village has extreme WUI exposure on south, east, and west sides.');
+}
+
+// ===================== RESET =====================
+function resetAll() {
+  if (timeSimRunning) stopTimeSim();
+  towers.forEach(function(t) {
+    layers.towers.removeLayer(t.marker);
+    layers.coverage.removeLayer(t.circle);
+  });
+  towers = [];
+  simulated = false;
+  buildingRects.forEach(function(rect) {
+    rect.setStyle({ color:'#888', fillColor:'#aaa', fillOpacity:0.5 });
+    rect._protectionState = 'unprotected';
+  });
+  removeIgnition();
+  clearFireVisuals();
+  pipePolylines.forEach(function(pl) {
+    pl.setStyle({ color: pl._origColor, weight: pl._origWeight, opacity: 0.8 });
+    var m = pl._pipeData;
+    pl.setTooltipContent(m.label + '<br>&Oslash;' + (m.diam*1000).toFixed(0) + 'mm');
+  });
+  updateCoverage();
+  updateStats();
+  updateCostOverlay();
+  if (placeMode) togglePlaceMode();
+  if (ignitionMode) toggleIgnitionMode();
+}
+
+// ===================== TEXT EXPORT =====================
+function exportReport() {
+  var n = towers.length;
+  if (n === 0) { alert('No towers to export.'); return; }
+  var zones = computeZones();
+  var flowDuty = n * 100;
+  var coverageHa = Math.min(n * 0.50, TOWN_AREA_HA * 1.2).toFixed(1);
+  var costLow = (n * 118000 / 1000).toFixed(0);
+  var costHigh = (n * 150000 / 1000).toFixed(0);
+  var covered = 0;
+  buildings.forEach(function(b) {
+    if (towers.some(function(t) {
+      var p = t.marker.getLatLng();
+      return haversine([p.lat, p.lng], [b.lat, b.lng]) <= 40;
+    })) covered++;
+  });
+  var report = 'HYDRODOME WILDFIRE DEFENSE SYSTEM\nFeasibility Report -- Harrison Hot Springs, BC\nGenerated: ' + new Date().toLocaleString() + '\n' +
+    '==================================================\n\n' +
+    'SYSTEM OVERVIEW\n  Total Towers: ' + n + '\n  Zones: ' + zones.length + '\n\n' +
+    'COVERAGE\n  Covered Area: ' + coverageHa + ' hectares\n  Structures Protected: ' + covered + ' / ' + buildings.length + '\n\n' +
+    'COST ESTIMATE\n  System Cost (avg): $' + (n * 134000 / 1000000).toFixed(1) + 'M\n  ROI: ' + Math.round(500000000 / (n * 134000)) + ':1\n\n' +
+    'TOWER LOCATIONS\n' + towers.map(function(t, i) {
+      var p = t.marker.getLatLng();
+      return '  Tower ' + (i+1) + ': ' + p.lat.toFixed(4) + 'N, ' + Math.abs(p.lng).toFixed(4) + 'W';
+    }).join('\n') + '\n\n(c) 2025 Carmanah Wildfire Defense';
+
+  var blob = new Blob([report], { type: 'text/plain' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'HydroDome_Harrison_Report.txt';
+  a.click();
+}
+
+// ===================== LAYER TOGGLE =====================
+function toggleLayer(name, visible) {
+  if (visible) map.addLayer(layers[name]);
+  else map.removeLayer(layers[name]);
+}
+
+// ===================== SPRAY ANIMATION (V8: sim-time rotation + mist plumes) =====================
+let sprayAnimEnabled = true;
+let sprayAnimRAF = null;
+
+function toggleSprayAnimation() {
+  setSprayAnimation(!sprayAnimEnabled);
+}
+
+function setSprayAnimation(on) {
+  sprayAnimEnabled = on;
+  var btn = document.getElementById('btn-spray-anim');
+  var chk = document.getElementById('chk-spray-anim');
+  var canvas = document.getElementById('spray-canvas');
+  if (btn) btn.textContent = on ? '\u{1f4a8} Spray Animation: ON' : '\u{1f4a8} Spray Animation: OFF';
+  if (chk) chk.checked = on;
+  if (canvas) canvas.style.display = on ? 'block' : 'none';
+}
+
+function initSprayCanvas() {
+  var canvas = document.getElementById('spray-canvas');
+  var container = document.getElementById('map-container');
+  function resize() {
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  map.on('move zoom resize', resize);
+
+  function animate() {
+    sprayAnimRAF = requestAnimationFrame(animate);
+    if (!sprayAnimEnabled) return;
+    if (!timeSimRunning) {
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    drawSprayAnimation(canvas);
+  }
+  animate();
+}
+
+function drawSprayAnimation(canvas) {
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  var now = performance.now();
+
+  // V8: Rotation tied to sim time. simMinute advances by simSpeed per tick (every 500ms).
+  // Use real time * simSpeed for smooth visual rotation.
+  // 30 sim-seconds = 1 revolution. At simSpeed=1, 1 sim-min per 500ms real.
+  // So 30 sim-sec = 0.5 sim-min = 250ms real at speed 1.
+  // That's too fast to see. Let's scale: 30 sim-MINUTES per revolution for visual clarity.
+  // Actually the spec says 30 sim-seconds. Let's honor it but note that at the sim's
+  // time compression (1 min per 500ms at speed=1), rotation will appear fast.
+  // Real rotation period = 30 / (simSpeed * 120) seconds = 0.25/simSpeed seconds at speed 1.
+  // That's way too fast. The sim runs at 120x real time at speed 1 (1 sim-min per 0.5 real-sec).
+  // So 30 sim-seconds = 30/120 = 0.25 real seconds per revolution at speed 1. Invisible.
+  //
+  // The spec intention is: tie visual rotation to sim time so it speeds up with sim speed.
+  // Original: 30 real-seconds per revolution (wall clock).
+  // New: multiply wall-clock-based rotation by simSpeed.
+  // This way at 1x: 30 real sec/rev (same as before). At 4x: 7.5 real sec/rev. At 8x: 3.75 real sec/rev.
+  var baseAngle = ((now / 30000) * simSpeed * 2 * Math.PI) % (2 * Math.PI);
+
+  var mistPulse = 0.08 + 0.07 * Math.sin(now / 800);
+
+  // === PASS 1: Draw mist plumes and haze with additive blending (V9: dramatically more visible) ===
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  simTowerState.forEach(function(ts, ti) {
+    if (!ts.active || ts.pumpPct <= 0) return;
+
+    var tPos = towers[ti].marker.getLatLng();
+    var pt = map.latLngToContainerPoint(tPos);
+    var radiusM = getSprayRadius(ts.pumpPct);
+    var p1 = map.latLngToContainerPoint([tPos.lat, tPos.lng]);
+    var p2 = map.latLngToContainerPoint([tPos.lat + radiusM / 111320, tPos.lng]);
+    var radiusPx = Math.abs(p1.y - p2.y);
+    if (radiusPx < 2) return;
+
+    var cx = pt.x;
+    var cy = pt.y;
+
+    // V9: Draw subtle mist haze WITHIN the spray circle
+    var hazeOpacity = 0.08 + 0.04 * Math.sin(now / 1000 + ti * 0.8);
+    ctx.fillStyle = 'rgba(100, 180, 255, ' + hazeOpacity.toFixed(3) + ')';
+    ctx.beginPath();
+    ctx.arc(cx, cy, radiusPx, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Skip downwind plume if no wind
+    if (windSpeedKmh <= 0 || windAngleDeg < 0) return;
+
+    var windRad = windAngleDeg * Math.PI / 180;
+    var dxWind = Math.sin(windRad);
+    var dyWind = -Math.cos(windRad);
+
+    // V9: Increased plume size
+    var plumeLenM = radiusM * (0.8 + windSpeedKmh / 25);
+    var plumeLenPx = plumeLenM * (radiusPx / radiusM);
+    var farWidthPx = radiusPx * 2 * 0.90;
+
+    var startX = cx + dxWind * radiusPx;
+    var startY = cy + dyWind * radiusPx;
+    var endX = cx + dxWind * (radiusPx + plumeLenPx);
+    var endY = cy + dyWind * (radiusPx + plumeLenPx);
+
+    var perpX = -dyWind;
+    var perpY = dxWind;
+
+    var startHalfW = radiusPx * 0.70;
+    var endHalfW = farWidthPx / 2;
+
+    // V9: Base opacity 0.30-0.35 with +/- 0.05 breathing
+    var baseOpacity = 0.32 + 0.05 * Math.sin(now / 1200 + ti * 0.5);
+
+    // V9: Glow pass (1.3x size, half opacity) for halo effect
+    var numSteps = 12;
+    for (var pass = 0; pass < 2; pass++) {
+      var sizeScale = pass === 0 ? 1.3 : 1.0;
+      var opacityScale = pass === 0 ? 0.5 : 1.0;
+
+      for (var step = 0; step < numSteps; step++) {
+        var f0 = step / numSteps;
+        var f1 = (step + 1) / numSteps;
+        var fMid = (f0 + f1) / 2;
+        var avgOpacity = (1 - fMid) * baseOpacity * opacityScale;
+        if (avgOpacity < 0.003) continue;
+
+        var x0 = startX + (endX - startX) * f0;
+        var y0 = startY + (endY - startY) * f0;
+        var x1 = startX + (endX - startX) * f1;
+        var y1 = startY + (endY - startY) * f1;
+
+        var hw0 = (startHalfW + (endHalfW - startHalfW) * f0) * sizeScale;
+        var hw1 = (startHalfW + (endHalfW - startHalfW) * f1) * sizeScale;
+
+        ctx.fillStyle = 'rgba(100, 180, 255, ' + avgOpacity.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(x0 + perpX * hw0, y0 + perpY * hw0);
+        ctx.lineTo(x1 + perpX * hw1, y1 + perpY * hw1);
+        ctx.lineTo(x1 - perpX * hw1, y1 - perpY * hw1);
+        ctx.lineTo(x0 - perpX * hw0, y0 - perpY * hw0);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  });
+
+  ctx.restore();
+
+  // === PASS 2: Draw spray arms and fans (normal blending) ===
+  simTowerState.forEach(function(ts, ti) {
+    if (!ts.active || ts.pumpPct <= 0) return;
+
+    var tPos = towers[ti].marker.getLatLng();
+    var pt = map.latLngToContainerPoint(tPos);
+    var radiusM = getSprayRadius(ts.pumpPct);
+    var p1 = map.latLngToContainerPoint([tPos.lat, tPos.lng]);
+    var p2 = map.latLngToContainerPoint([tPos.lat + radiusM / 111320, tPos.lng]);
+    var radiusPx = Math.abs(p1.y - p2.y);
+    if (radiusPx < 2) return;
+
+    var cx = pt.x;
+    var cy = pt.y;
+
+    // V8: sim-time rotation. Offset each tower.
+    var towerOffset = ti * 0.7;
+    var angle = baseAngle + towerOffset;
+
+    ctx.save();
+
+    // Rotating sprinkler arm
+    ctx.strokeStyle = 'rgba(180, 220, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * radiusPx, cy + Math.sin(angle) * radiusPx);
+    ctx.stroke();
+
+    // Spray fan wedge (40 degree arc trailing behind arm)
+    var fanAngle = 40 * Math.PI / 180;
+    ctx.fillStyle = 'rgba(100, 180, 255, 0.25)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radiusPx, angle - fanAngle, angle, false);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  });
+}
+
+// ===================== INIT =====================
+updateStats();
+updateCoverage();
+updateCostOverlay();
+initDraggablePanels();
+initSprayCanvas();
+L.control.scale({ imperial: true, metric: true }).addTo(map);
+
+// V3: Save/Load tower layouts
+function exportTowers() {
+  var coords = towers.map(function(t) {
+    var p = t.marker.getLatLng();
+    return [+p.lat.toFixed(6), +p.lng.toFixed(6)];
+  });
+  var json = JSON.stringify(coords);
+  // Copy to clipboard
+  navigator.clipboard.writeText(json).then(function() {
+    alert('Copied ' + coords.length + ' tower positions to clipboard!\\n\\nPaste into a file or send to Regie to bake into a new version.');
+  }).catch(function() {
+    // Fallback: download as file
+    var blob = new Blob([json], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'hydrodome_towers_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+  });
+}
+
+function importTowers() {
+  var input = prompt('Paste tower coordinates JSON (or leave blank to load from file):');
+  if (input && input.trim()) {
+    loadTowerCoords(JSON.parse(input.trim()));
+  } else {
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.onchange = function(e) {
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        loadTowerCoords(JSON.parse(ev.target.result));
+      };
+      reader.readAsText(e.target.files[0]);
+    };
+    fileInput.click();
+  }
+}
+
+function loadTowerCoords(coords) {
+  // Clear existing towers
+  towers.forEach(function(t) { map.removeLayer(t.marker); if (t.circle) map.removeLayer(t.circle); });
+  towers.length = 0;
+  // Place new ones
+  coords.forEach(function(pos) { addTower(pos[0], pos[1]); });
+  updateStats();
+  alert('Loaded ' + coords.length + ' towers!');
+}
+
+// V3: Preset tower layout (76 towers from Nick's V2 placement)
+const presetTowers = [[49.30253,-121.784885],[49.302558,-121.784027],[49.302516,-121.78304],[49.30253,-121.781945],[49.302502,-121.780872],[49.302544,-121.779821],[49.302335,-121.778769],[49.301705,-121.778233],[49.301103,-121.777718],[49.300502,-121.777225],[49.29997,-121.776688],[49.301075,-121.776688],[49.301397,-121.775851],[49.301705,-121.775036],[49.301999,-121.774263],[49.302363,-121.773534],[49.302418,-121.777632],[49.302502,-121.776645],[49.302754,-121.77568],[49.301803,-121.784928],[49.301803,-121.783855],[49.301817,-121.782868],[49.30025,-121.784585],[49.300432,-121.783619],[49.300628,-121.782696],[49.300879,-121.781709],[49.301369,-121.78098],[49.301257,-121.780422],[49.300683,-121.780508],[49.300082,-121.780529],[49.299396,-121.780593],[49.298697,-121.780915],[49.298655,-121.782031],[49.299354,-121.781731],[49.299886,-121.782095],[49.299774,-121.782932],[49.299088,-121.782825],[49.298641,-121.784112],[49.297997,-121.780872],[49.297731,-121.78158],[49.299662,-121.777375],[49.29934,-121.77819],[49.299102,-121.778662],[49.298417,-121.778877],[49.297941,-121.778126],[49.296136,-121.779542],[49.298683,-121.777031],[49.298459,-121.776452],[49.299158,-121.775744],[49.298347,-121.775401],[49.298641,-121.774521],[49.29906,-121.77362],[49.299466,-121.772654],[49.29955,-121.774843],[49.299886,-121.773963],[49.300264,-121.773083],[49.300264,-121.775701],[49.300614,-121.774886],[49.300935,-121.774006],[49.301215,-121.773276],[49.297801,-121.784692],[49.297339,-121.784649],[49.296737,-121.784413],[49.296388,-121.783683],[49.29643,-121.78261],[49.296388,-121.781495],[49.296695,-121.7804],[49.297339,-121.780422],[49.296849,-121.779263],[49.296598,-121.778255],[49.295464,-121.777976],[49.295492,-121.778984],[49.295492,-121.780078],[49.295436,-121.781259],[49.295436,-121.782396],[49.295786,-121.783276]];
+presetTowers.forEach(function(pos) {
+  addTower(pos[0], pos[1]);
+});
+updateStats();
+
+</script>
+</body>
+</html>
