@@ -1155,7 +1155,7 @@ const buildings = [];
 
 // =================== SKIP OLD HARRISON DATA ===================
 (function skipOldHarrisonData() {
-  // OLD: Harrison Hot Springs data (49.3°N, -121.8°W) - WRONG LOCATION - REMOVED
+  // OLD: Fort St. James data (49.3°N, -121.8°W) - WRONG LOCATION - REMOVED
   return; // Skip everything below
   const _skip = [
     [49.303848,-121.791045],[49.303582,-121.788875],[49.303463,-121.789294],[49.303079,-121.790272],[49.303078,-121.789388],
@@ -3558,7 +3558,7 @@ async function exportPDF() {
     var y = 48;
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text('Harrison Hot Springs, BC  |  Generated: ' + new Date().toLocaleDateString(), margin, y);
+    doc.text('Fort St. James, BC  |  Generated: ' + new Date().toLocaleDateString(), margin, y);
     y += 10;
 
     try {
@@ -3700,7 +3700,7 @@ async function exportPDF() {
     doc.text('(c) 2025 Carmanah Wildfire Defense -- HydroDome Wildfire Defense System', margin, y);
     doc.text('Nelson Big Gun 150 Series | 400 GPM @ 100 PSI | 70m radius | 1.54 ha coverage', margin, y + 4);
 
-    doc.save('HydroDome_Harrison_Report.pdf');
+    doc.save('HydroDome_FSJ_Report.pdf');
   } catch(e) {
     console.error('PDF export error:', e);
     alert('PDF generation failed. Try the text export instead.');
@@ -3793,7 +3793,7 @@ function exportReport() {
   var blob = new Blob([report], { type: 'text/plain' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'HydroDome_Harrison_Report.txt';
+  a.download = 'HydroDome_FSJ_Report.txt';
   a.click();
 }
 
