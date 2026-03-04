@@ -417,7 +417,8 @@ body.fullscreen-mode #fullscreen-toggle .fs-icon::before {
           <div class="value" id="stat-coverage">0</div>
           <div class="label">Ha Coverage</div>
         </div>
-        <div class="stat-card full">
+        <!-- Cost card hidden per stakeholder feedback -->
+        <div class="stat-card full" style="display:none;">
           <div class="value" id="stat-cost">$0</div>
           <div class="label">Est. Cost (CAD)</div>
         </div>
@@ -592,7 +593,8 @@ body.fullscreen-mode #fullscreen-toggle .fs-icon::before {
     <div class="cov-lbl">Buildings Protected</div>
     <div style="font-size:9px;color:#666;margin-top:2px;" id="cov-sub">Place towers to protect</div>
   </div>
-  <div id="cost-overlay">
+  <!-- Cost overlay hidden per stakeholder feedback -->
+  <div id="cost-overlay" style="display:none;">
     <div class="cost-title">Cost vs Damage</div>
     <div class="cost-row"><span class="cost-label">System Cost:</span><span class="cost-value" id="cost-system" style="color:#FF6B35;">$0</span></div>
     <div class="cost-row"><span class="cost-label">Protects Against:</span><span class="cost-value" style="color:#e74c3c;">$500M+</span></div>
@@ -1153,7 +1155,7 @@ const buildings = [];
 
 // =================== SKIP OLD HARRISON DATA ===================
 (function skipOldHarrisonData() {
-  // OLD: Harrison Hot Springs data (49.3°N, -121.8°W) - WRONG LOCATION - REMOVED
+  // OLD: Fort St. James data (49.3°N, -121.8°W) - WRONG LOCATION - REMOVED
   return; // Skip everything below
   const _skip = [
     [49.303848,-121.791045],[49.303582,-121.788875],[49.303463,-121.789294],[49.303079,-121.790272],[49.303078,-121.789388],
@@ -2077,16 +2079,11 @@ function updateStats() {
   const flowTotal = n * 200;
   const flowDuty = flowTotal * 0.5;
   const coverageHa = Math.min(n * 0.50, TOWN_AREA_HA * 1.2).toFixed(1);
-  const costLow = n * 118000;
-  const costHigh = n * 150000;
-
   document.getElementById('stat-towers').textContent = n;
   document.getElementById('stat-zones').textContent = zones.length;
   document.getElementById('stat-flow').textContent = flowDuty;
   document.getElementById('stat-coverage').textContent = coverageHa;
-  // V13: Show cost in millions (not thousands)
-  document.getElementById('stat-cost').textContent = n === 0 ? '$0' :
-    '$' + (costLow/1000000).toFixed(2) + 'M\u2013' + (costHigh/1000000).toFixed(2) + 'M';
+  // Cost display hidden per stakeholder feedback
 
   // V9: Compute pipe-shared supply per zone
   var f1Pipe = waterMains.find(function(m) { return m.id === 'F1'; });
@@ -3561,7 +3558,7 @@ async function exportPDF() {
     var y = 48;
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text('Harrison Hot Springs, BC  |  Generated: ' + new Date().toLocaleDateString(), margin, y);
+    doc.text('Fort St. James, BC  |  Generated: ' + new Date().toLocaleDateString(), margin, y);
     y += 10;
 
     try {
@@ -3680,15 +3677,9 @@ async function exportPDF() {
         return haversine([p.lat, p.lng], [b.lat, b.lng]) <= 40;
       })) covered++;
     });
-    var cost = n * 134000;
-    var costStr = '$' + (cost / 1000000).toFixed(1) + 'M CAD';
-    var roi = Math.round(500000000 / cost);
-
+    // Cost figures hidden per stakeholder feedback
     var costItems2 = [
-      ['System Cost', costStr],
       ['Structures Protected', covered + '/' + buildings.length + ' (' + Math.round(covered/buildings.length*100) + '%)'],
-      ['Estimated Loss Prevention', '$500M+'],
-      ['Return on Investment', roi + ':1'],
     ];
     doc.setFontSize(11);
     costItems2.forEach(function(kv) {
@@ -3709,7 +3700,7 @@ async function exportPDF() {
     doc.text('(c) 2025 Carmanah Wildfire Defense -- HydroDome Wildfire Defense System', margin, y);
     doc.text('Nelson Big Gun 150 Series | 400 GPM @ 100 PSI | 70m radius | 1.54 ha coverage', margin, y + 4);
 
-    doc.save('HydroDome_Harrison_Report.pdf');
+    doc.save('HydroDome_FSJ_Report.pdf');
   } catch(e) {
     console.error('PDF export error:', e);
     alert('PDF generation failed. Try the text export instead.');
@@ -3783,8 +3774,6 @@ function exportReport() {
   var zones = computeZones();
   var flowDuty = n * 100;
   var coverageHa = Math.min(n * 0.50, TOWN_AREA_HA * 1.2).toFixed(1);
-  var costLow = (n * 118000 / 1000).toFixed(0);
-  var costHigh = (n * 150000 / 1000).toFixed(0);
   var covered = 0;
   buildings.forEach(function(b) {
     if (towers.some(function(t) {
@@ -3792,11 +3781,10 @@ function exportReport() {
       return haversine([p.lat, p.lng], [b.lat, b.lng]) <= 40;
     })) covered++;
   });
-  var report = 'HYDRODOME WILDFIRE DEFENSE SYSTEM\nFeasibility Report -- Harrison Hot Springs, BC\nGenerated: ' + new Date().toLocaleString() + '\n' +
+  var report = 'HYDRODOME WILDFIRE DEFENSE SYSTEM\nFeasibility Report -- Fort St. James, BC\nGenerated: ' + new Date().toLocaleString() + '\n' +
     '==================================================\n\n' +
     'SYSTEM OVERVIEW\n  Total Towers: ' + n + '\n  Zones: ' + zones.length + '\n\n' +
     'COVERAGE\n  Covered Area: ' + coverageHa + ' hectares\n  Structures Protected: ' + covered + ' / ' + buildings.length + '\n\n' +
-    'COST ESTIMATE\n  System Cost (avg): $' + (n * 134000 / 1000000).toFixed(1) + 'M\n  ROI: ' + Math.round(500000000 / (n * 134000)) + ':1\n\n' +
     'TOWER LOCATIONS\n' + towers.map(function(t, i) {
       var p = t.marker.getLatLng();
       return '  Tower ' + (i+1) + ': ' + p.lat.toFixed(4) + 'N, ' + Math.abs(p.lng).toFixed(4) + 'W';
@@ -3805,7 +3793,7 @@ function exportReport() {
   var blob = new Blob([report], { type: 'text/plain' });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'HydroDome_Harrison_Report.txt';
+  a.download = 'HydroDome_FSJ_Report.txt';
   a.click();
 }
 
@@ -4182,18 +4170,7 @@ document.addEventListener('DOMContentLoaded', function() {
       style: priorityStyle,
       label: "⚡ Substation #2"
     },
-    // CLUSTER 6: Nakalbun Elementary School
-    {
-      name: "Nak'albun Elementary",
-      desc: "Nak'albun Elementary School",
-      priority: "HIGH",
-      coords: [
-        [54.4405, -124.2510], [54.4405, -124.2480],
-        [54.4385, -124.2480], [54.4385, -124.2510]
-      ],
-      style: priorityStyle,
-      label: "🏫 Nak'albun Elementary"
-    },
+    // CLUSTER 6: (Removed per Jackson's feedback - Nak'albun community area)
     // CLUSTER 7: David Hoy Elementary School
     {
       name: "David Hoy Elementary",
