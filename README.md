@@ -1,14 +1,14 @@
 # HydroDome Wildfire Defense Simulations
 
-Interactive wildfire defense simulations by [Carmanah Wildfire](https://carmanahwildfire.com). Each demo models HydroDome tower deployment, hydraulic analysis, and fire behavior for a specific BC community.
+Interactive wildfire defense simulations by [Carmanah Wildfire](https://carmanahwildfire.com). Each demo models HydroDome tower deployment, hydraulic analysis, and fire behavior for BC communities.
 
 ## 🔴 Live Demos
 
 | Community | Description | Link |
 |-----------|-------------|------|
 | **Fort St. James, BC** | V4 — 54 towers, 409 roads, full fire spread modeling | [Launch Demo](https://tetontopo.github.io/hydrodome-sim/) |
+| **Fort St. James, BC** | Priority area analysis — key community assets and Nak'azdli First Nations coverage | [Launch Demo](https://tetontopo.github.io/hydrodome-sim/FSJ-priority-areas.html) |
 | **Harrison Hot Springs, BC** | V10 — 76 towers, 253 water mains, 4-level hydraulic cascade | [Launch Demo](https://tetontopo.github.io/hydrodome-sim/harrison-hot-springs.html) |
-| **Jackson, WY** | Priority area analysis | [Launch Demo](https://tetontopo.github.io/hydrodome-sim/jackson-areas.html) |
 
 ## About HydroDome
 
@@ -19,7 +19,7 @@ HydroDome is a permanent wildfire defense infrastructure system that uses Nelson
 - **Fire Simulation** — Elliptical spread with wind, ember showers, and spot fires
 - **Zone Duty Cycling** — Capstone C65 microturbine-powered rotation
 - **SCADA Dashboard** — Real-time system monitoring
-- **Cost/ROI Analysis** — System cost vs. estimated loss prevention
+- **Coverage Analysis** — Structure protection and priority asset mapping
 
 ## Harrison Hot Springs (V10)
 
