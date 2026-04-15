@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HydroDome — West Fraser Quesnel Sawmill</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; display:flex; height:100vh; overflow:hidden; background:#1a1a2e; }
+
+#sidebar {
+  width: 360px; min-width: 360px;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  color: #e0e0e0; display:flex; flex-direction:column;
+  z-index: 1000; overflow-y:auto;
+  border-right: 2px solid #2D5016;
+}
+#sidebar::-webkit-scrollbar { width:6px; }
+#sidebar::-webkit-scrollbar-thumb { background:#2D5016; border-radius:3px; }
+
+.logo-area {
+  padding: 20px; text-align:center;
+  background: linear-gradient(135deg, #2D5016 0%, #1a3a0a 100%);
+  border-bottom: 3px solid #FF6B35;
+}
+.logo-area h1 { font-size:24px; color:#fff; letter-spacing:2px; margin-bottom:2px; }
+.logo-area .dome-icon { font-size:36px; margin-bottom:4px; }
+.logo-area .subtitle { font-size:12px; color:#FF6B35; text-transform:uppercase; letter-spacing:3px; }
+.logo-area .location { font-size:11px; color:#8fbc8f; margin-top:6px; }
+
+.section {
+  padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.08);
+  transition: background 0.2s;
+}
+.section-header {
+  display:flex; align-items:center; cursor:pointer; user-select:none;
+}
+.section-header h3 {
+  font-size:12px; text-transform:uppercase; letter-spacing:2px; color:#FF6B35; margin:0; flex:1;
+}
+.section-header .collapse-arrow {
+  font-size:10px; color:#666; transition:transform 0.2s; margin-left:8px;
+}
+.section.collapsed .section-body { display:none; }
+.section.collapsed .collapse-arrow { transform:rotate(-90deg); }
+.section-body { margin-top:10px; }
+
+.btn {
+  display:block; width:100%; padding:10px 14px; margin-bottom:8px;
+  border:none; border-radius:6px; font-size:13px; font-weight:600;
+  cursor:pointer; transition: all 0.2s; text-align:center;
+}
+.btn-primary { background:#2D5016; color:#fff; }
+.btn-primary:hover { background:#3a6b1e; }
+.btn-primary.active { background:#FF6B35; color:#fff; box-shadow:0 0 12px rgba(255,107,53,0.4); }
+.btn-orange { background:#FF6B35; color:#fff; }
+.btn-orange:hover { background:#ff8555; }
+.btn-danger { background:#c0392b; color:#fff; }
+.btn-danger:hover { background:#e74c3c; }
+.btn-outline { background:transparent; color:#8fbc8f; border:1px solid #2D5016; }
+.btn-outline:hover { background:rgba(45,80,22,0.3); }
+.btn-sim { background: linear-gradient(135deg, #2D5016, #FF6B35); color:#fff; }
+.btn-sim:hover { opacity:0.9; }
+.btn-timesim { background: linear-gradient(135deg, #3498db, #2ecc71); color:#fff; }
+.btn-timesim:hover { opacity:0.9; }
+.btn-fire { background: linear-gradient(135deg, #e74c3c, #f39c12); color:#fff; }
+.btn-fire:hover { opacity:0.9; }
+.btn-fire.active { box-shadow:0 0 12px rgba(231,76,60,0.6); }
+.btn-scada { background: linear-gradient(135deg, #1a1a2e, #2c3e50); color:#2ecc71; border:1px solid #2ecc71; }
+.btn-scada:hover { background:#2c3e50; }
+.btn-evac { background: linear-gradient(135deg, #c0392b, #e67e22); color:#fff; border:1px solid #e74c3c; }
+.btn-evac:hover { opacity:0.9; }
+
+.stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stat-card {
+  background: rgba(255,255,255,0.05); border-radius:8px; padding:10px;
+  text-align:center; border:1px solid rgba(45,80,22,0.3);
+}
+.stat-card .value { font-size:22px; font-weight:700; color:#fff; }
+.stat-card .label { font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+.stat-card.full { grid-column:1/-1; }
+
+.capacity-bar { height:8px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:6px; overflow:hidden; }
+.capacity-fill { height:100%; border-radius:4px; transition: width 0.5s, background 0.5s; }
+
+.status-badge {
+  display:inline-block; padding:4px 12px; border-radius:12px;
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;
+}
+.status-green { background:rgba(46,204,113,0.2); color:#2ecc71; border:1px solid #2ecc71; }
+.status-yellow { background:rgba(241,196,15,0.2); color:#f1c40f; border:1px solid #f1c40f; }
+.status-red { background:rgba(231,76,60,0.2); color:#e74c3c; border:1px solid #e74c3c; }
+
+#map-container { flex:1; position:relative; }
+#map { width:100%; height:100%; }
+
+#map-tooltip {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  background:rgba(26,26,46,0.9); color:#FF6B35; padding:8px 20px;
+  border-radius:20px; font-size:13px; font-weight:600; z-index:999;
+  pointer-events:none; transition:opacity 0.3s; border:1px solid #FF6B35;
+}
+#map-tooltip.hidden { opacity:0; }
+
+#legend {
+  position:absolute; bottom:20px; right:10px; z-index:999;
+  background:rgba(26,26,46,0.92); padding:12px 16px; border-radius:8px;
+  font-size:11px; color:#ccc; border:1px solid rgba(45,80,22,0.5);
+}
+#legend h4 { color:#FF6B35; margin-bottom:6px; font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+.legend-item { display:flex; align-items:center; margin:4px 0; }
+.legend-color { width:24px; height:4px; border-radius:2px; margin-right:8px; }
+.legend-circle { width:12px; height:12px; border-radius:50%; margin-right:8px; border:2px solid; }
+
+#coverage-display {
+  position:absolute; top:10px; right:10px; z-index:999;
+  background:rgba(26,26,46,0.92); padding:12px 16px; border-radius:8px;
+  font-size:13px; color:#fff; border:1px solid #2D5016; min-width:140px; text-align:center;
+}
+#coverage-display .cov-val { font-size:28px; font-weight:700; color:#2ecc71; }
+#coverage-display .cov-lbl { font-size:10px; color:#aaa; text-transform:uppercase; letter-spacing:1px; }
+
+#cost-overlay {
+  position:absolute; top:80px; right:10px; z-index:999;
+  background:rgba(26,26,46,0.92); padding:14px 18px; border-radius:8px;
+  font-size:13px; color:#fff; border:1px solid #FF6B35; min-width:220px;
+}
+#cost-overlay .cost-title { font-size:10px; color:#FF6B35; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+#cost-overlay .cost-row { display:flex; justify-content:space-between; margin:4px 0; }
+#cost-overlay .cost-label { color:#aaa; font-size:12px; }
+#cost-overlay .cost-value { font-weight:700; font-size:14px; }
+#cost-overlay .roi-value { font-size:20px; font-weight:700; color:#2ecc71; text-align:center; margin-top:6px; }
+
+.pipe-tooltip { font-size:12px; }
+
+#scada-panel {
+  position:absolute; bottom:50px; left:10px; right:10px; z-index:998;
+  background:rgba(5,5,15,0.96); border:2px solid #1a5c1a; border-radius:8px;
+  color:#33ff33; font-family:'Courier New',monospace; padding:16px;
+  display:none; max-height:280px; overflow-y:auto;
+}
+#scada-panel::-webkit-scrollbar { width:4px; }
+#scada-panel::-webkit-scrollbar-thumb { background:#1a5c1a; }
+#scada-panel .scada-header {
+  display:flex; justify-content:space-between; align-items:center;
+  border-bottom:1px solid #1a5c1a; padding-bottom:8px; margin-bottom:10px;
+}
+#scada-panel .scada-title { font-size:14px; font-weight:700; color:#33ff33; letter-spacing:2px; }
+#scada-panel .scada-close { cursor:pointer; color:#ff3333; font-size:16px; }
+.scada-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+.scada-meter {
+  background:rgba(10,30,10,0.8); border:1px solid #1a5c1a; border-radius:4px;
+  padding:8px 10px; text-align:center;
+}
+.scada-meter .sm-label { font-size:9px; color:#66aa66; text-transform:uppercase; letter-spacing:1px; }
+.scada-meter .sm-value { font-size:20px; font-weight:700; margin:4px 0; }
+.scada-meter .sm-unit { font-size:10px; color:#448844; }
+.scada-meter.alert-yellow .sm-value { color:#ffaa00; }
+.scada-meter.alert-red .sm-value { color:#ff3333; animation:scada-blink 0.8s infinite; }
+@keyframes scada-blink { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.ember-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:radial-gradient(#ffee00, #ff6600);
+  box-shadow:0 0 4px #ff6600;
+  animation: ember-flicker 0.4s infinite alternate;
+}
+@keyframes ember-flicker { 0%{opacity:1;transform:scale(1)} 100%{opacity:0.6;transform:scale(0.7)} }
+
+#sim-clock {
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  background:rgba(26,26,46,0.95); color:#3498db; padding:10px 24px;
+  border-radius:12px; font-size:22px; font-weight:700; z-index:999;
+  border:2px solid #3498db; display:none; font-family:monospace;
+}
+
+#timeline-bar {
+  position:absolute; bottom:0; left:0; right:0; height:40px;
+  background:rgba(16,16,30,0.95); z-index:999; display:none;
+  border-top:1px solid rgba(52,152,219,0.5); cursor:pointer;
+}
+#timeline-bar .tl-fill {
+  position:absolute; top:0; left:0; bottom:0;
+  background:linear-gradient(90deg, rgba(52,152,219,0.3), rgba(46,204,113,0.3));
+  pointer-events:none;
+}
+#timeline-bar .tl-markers {
+  position:absolute; top:0; left:0; right:0; bottom:0;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:0 20px; pointer-events:none;
+}
+#timeline-bar .tl-mark { font-size:10px; color:#aaa; font-family:monospace; }
+#timeline-bar .tl-playhead {
+  position:absolute; top:0; bottom:0; width:3px;
+  background:#3498db; box-shadow:0 0 8px rgba(52,152,219,0.6);
+  pointer-events:none;
+}
+
+#wind-arrow {
+  position:absolute; top:60px; left:10px; z-index:999;
+  width:50px; height:50px; background:rgba(26,26,46,0.9);
+  border-radius:50%; border:1px solid rgba(255,255,255,0.2);
+  display:none; align-items:center; justify-content:center;
+  font-size:24px;
+}
+
+.info-panel-content {
+  font-family: 'Courier New', monospace; font-size:10px;
+  line-height:1.5; color:#8fbc8f; white-space:pre-line;
+  background:rgba(0,0,0,0.3); padding:10px; border-radius:6px;
+  border:1px solid rgba(45,80,22,0.3);
+}
+.info-panel-content .info-heading {
+  color:#FF6B35; font-weight:700; font-size:11px;
+}
+.info-panel-content .info-value {
+  color:#fff; font-weight:700;
+}
+
+.wind-row { display:flex; gap:8px; align-items:center; margin:6px 0; }
+.wind-row label { font-size:11px; min-width:50px; }
+.wind-row select, .wind-row input[type=range] { flex:1; }
+.wind-row select {
+  background:#1a1a2e; color:#e0e0e0; border:1px solid #2D5016;
+  padding:4px 6px; border-radius:4px; font-size:11px;
+}
+.wind-speed-val { font-size:11px; min-width:40px; text-align:right; color:#3498db; }
+
+.sim-zone-row { display:flex; align-items:center; gap:6px; margin:4px 0; font-size:12px; }
+.sim-zone-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.sim-stat-row { display:flex; justify-content:space-between; font-size:12px; margin:3px 0; }
+.sim-stat-val { font-weight:700; color:#fff; }
+.cistern-bar-mini { display:inline-block; width:60px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden; vertical-align:middle; }
+.cistern-bar-mini-fill { height:100%; border-radius:4px; transition:width 0.3s; }
+
+.fire-row { display:flex; gap:8px; align-items:center; margin:6px 0; }
+.fire-row label { font-size:11px; min-width:60px; }
+.fire-row input[type=range] { flex:1; }
+.fire-speed-val { font-size:11px; min-width:30px; text-align:right; color:#e74c3c; }
+
+@media (max-width:768px) {
+  body { flex-direction:column; }
+  #sidebar { width:100%; min-width:auto; max-height:45vh; order:2; }
+  #map-container { order:1; flex:1; }
+}
+@media print { #sidebar { display:none; } #map { width:100vw; height:100vh; } }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="logo-area">
+    <div class="dome-icon">&#x1f6e1;&#xfe0f;</div>
+    <h1>HYDRODOME</h1>
+    <div class="subtitle">Wildfire Defense System</div>
+    <div class="location">&#x1f4cd; West Fraser Quesnel Sawmill, BC</div>
+  </div>
+
+  <div class="section" data-panel="controls">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>Controls</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <button class="btn btn-primary" id="btn-place" onclick="togglePlaceMode()">&#x1f5fc; Place Tower Mode</button>
+      <button class="btn btn-outline" onclick="exportTowers()" style="border-color:#2ecc71;color:#2ecc71;">&#x1f4be; Save Layout</button>
+      <button class="btn btn-outline" onclick="importTowers()" style="border-color:#3498db;color:#3498db;">&#x1f4c2; Load Layout</button>
+      <button class="btn btn-fire" id="btn-ignition" onclick="toggleIgnitionMode()">&#x1f525; Set Ignition Point</button>
+      <button class="btn btn-outline" id="btn-fire-toggle" onclick="toggleFireBehavior()" style="display:none;">&#x1f525; Fire Model: ON</button>
+      <button class="btn btn-sim" id="btn-sim" onclick="runSimulation()">&#x26a1; Run Simulation</button>
+      <button class="btn btn-timesim" id="btn-timesim" onclick="toggleTimeSim()">&#x25b6; Run Time Simulation</button>
+      <div id="speed-controls" style="display:none;margin-bottom:8px;">
+        <div style="font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Playback Speed: <span id="speed-label" style="color:#fff;font-weight:bold;">1x</span></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;color:#888;">1x</span>
+          <input type="range" id="speed-slider" min="0" max="100" value="0" style="flex:1;accent-color:#3498db;cursor:pointer;" oninput="setSimSpeedFromSlider(this.value)">
+          <span style="font-size:10px;color:#888;">100x</span>
+        </div>
+      </div>
+      <button class="btn btn-orange" onclick="loadRecommended()">&#x1f4cb; Load Recommended Layout</button>
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <button class="btn btn-outline" style="flex:1" onclick="resetAll()">&#x21ba; Reset</button>
+        <button class="btn btn-outline" style="flex:1" onclick="exportReport()">&#x1f4c4; Export</button>
+      </div>
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <button class="btn btn-outline" style="flex:1" onclick="exportPDF()">&#x1f4c4; Export PDF</button>
+        <button class="btn btn-scada" style="flex:1" onclick="toggleSCADA()">&#x1f4ca; SCADA Dashboard</button>
+      </div>
+      <button class="btn btn-outline" id="btn-coverage-toggle" onclick="toggleCoverageConfig()" style="margin-top:4px;border-color:#9b59b6;color:#9b59b6;">&#x1f504; Core Coverage (8 towers)</button>
+    </div>
+  </div>
+
+  <div class="section" data-panel="summary">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>System Summary</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="value" id="stat-towers">0</div>
+          <div class="label">Towers</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="stat-zones">0</div>
+          <div class="label">Zones</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="stat-flow">0</div>
+          <div class="label">GPM Demand</div>
+        </div>
+        <div class="stat-card">
+          <div class="value" id="stat-coverage">0</div>
+          <div class="label">Ha Coverage</div>
+        </div>
+        <div class="stat-card full">
+          <div class="value" id="stat-cost">$0</div>
+          <div class="label">Est. System Cost (CAD)</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;text-align:center;">
+        <span id="stat-protected" style="font-size:13px;color:#3498db;font-weight:600;">0 structures protected</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="zone-triage-section" style="display:none;" data-panel="triage">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>&#x1f3af; Zone Triage</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="zone-triage-panel" style="font-size:12px; line-height:1.6; color:#bbb;">
+        Manual zone control available during simulation.
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="sim-live-section" style="display:none;" data-panel="simlive">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>&#x23f1; Live Simulation</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="sim-live-panel" style="font-size:12px; line-height:1.6; color:#bbb;"></div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="capacity">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>System Capacity</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px;">Hydraulic Load</span>
+        <span class="status-badge status-green" id="status-badge">STANDBY</span>
+      </div>
+      <div class="capacity-bar"><div class="capacity-fill" id="capacity-fill" style="width:0%;background:#2ecc71;"></div></div>
+      <div id="capacity-label" style="font-size:11px;margin-top:4px;text-align:center;color:#aaa;">No towers placed</div>
+    </div>
+  </div>
+
+  <div class="section" id="duty-section" data-panel="duty">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>Duty Cycle</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="duty-info" style="font-size:12px; line-height:1.6; color:#bbb;">
+        Place towers and run simulation to see duty cycle recommendations.
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="fire-section" style="display:none;" data-panel="fire">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>&#x1f525; Fire Simulation</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="fire-row">
+        <label>Speed</label>
+        <input type="range" id="fire-speed-mult" min="0.5" max="5" step="0.5" value="2" oninput="document.getElementById('fire-speed-val').textContent=this.value+'x'">
+        <span class="fire-speed-val" id="fire-speed-val">2x</span>
+      </div>
+      <div id="fire-info" style="font-size:12px; line-height:1.6; color:#bbb;"></div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="wind">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>Wind</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="wind-row">
+        <label>Direction</label>
+        <select id="wind-dir" onchange="updateWind()">
+          <option value="-1">Calm</option>
+          <option value="0">N</option><option value="45">NE</option>
+          <option value="90">E</option><option value="135">SE</option>
+          <option value="180">S</option><option value="225">SW</option>
+          <option value="270" selected>W</option><option value="315">NW</option>
+        </select>
+      </div>
+      <div class="wind-row">
+        <label>Speed</label>
+        <input type="range" id="wind-speed" min="0" max="30" value="15" oninput="updateWind()">
+        <span class="wind-speed-val" id="wind-speed-val">15 km/h</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="layers">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>Map Layers</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('pipes',this.checked)"> Water Mains
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('hydrants',this.checked)"> Hydrants
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('buildings',this.checked)"> Buildings
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('coverage',this.checked)"> Coverage Circles
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('fire',this.checked)"> Fire Layer
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked id="chk-spray-anim" onchange="setSprayAnimation(this.checked)"> Spray Animation
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0;cursor:pointer;">
+        <input type="checkbox" checked onchange="toggleLayer('riskZones',this.checked)"> Risk Zones
+      </label>
+    </div>
+  </div>
+
+  <div class="section" data-panel="roi">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>&#x1f4b0; Insurance ROI</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div id="roi-panel" style="font-size:12px; line-height:1.8; color:#bbb;">
+        <div class="sim-stat-row"><span>Asset value protected:</span><span class="sim-stat-val" style="color:#2ecc71;">$200–500M+</span></div>
+        <div class="sim-stat-row"><span>Log yard inventory:</span><span class="sim-stat-val">~$100M</span></div>
+        <div class="sim-stat-row"><span>System cost (core):</span><span class="sim-stat-val" style="color:#FF6B35;">$2.75M</span></div>
+        <div class="sim-stat-row"><span>System cost (full):</span><span class="sim-stat-val" style="color:#FF6B35;">$9.15M</span></div>
+        <div class="sim-stat-row"><span>Est. annual savings:</span><span class="sim-stat-val" style="color:#2ecc71;">$1M–3M+</span></div>
+        <div class="sim-stat-row"><span>Payback period:</span><span class="sim-stat-val" style="color:#2ecc71;">2–5 years</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" data-panel="info">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>&#x1f3ed; Facility Info</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <div class="info-panel-content"><span class="info-heading">WEST FRASER QUESNEL — HYDRODOME FEASIBILITY</span>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Facility: West Fraser Timber Co. — Quesnel Sawmill
+Address: 1250 Brownmiller Road, Quesnel, BC V2J 6P5
+Operations: Sawmill + Plywood + MDF (WestPine) + Planer
+Founded: 1955 (legacy/founding facility)
+
+<span class="info-heading">ASSET VALUES</span>
+Log yard inventory: <span class="info-value">~$100M CAD</span>
+Total on-site inventory: <span class="info-value">~$110–120M CAD</span>
+Total complex value: <span class="info-value">$200–500M+</span>
+
+<span class="info-heading">FIRE RISK</span>
+WUI Risk Rating: <span class="info-value" style="color:#e74c3c;">EXTREME</span> (Cariboo District)
+Recent incident: Aug 2024 log yard fire (Pinecrest Rd)
+  → 5 fire departments + BC Wildfire Service required
+
+<span class="info-heading">HYDRODOME SYSTEM</span>
+Towers (core): <span class="info-value">6–8</span> | Towers (full): <span class="info-value">12–14</span>
+Flow per tower: <span class="info-value">720–850 GPM</span>
+Total system demand: <span class="info-value">5,000–12,000 GPM</span>
+Water source: Fraser River + Quesnel River (excellent)
+
+<span class="info-heading">ESTIMATED ROI</span>
+System cost: <span class="info-value">$2.75M–$9.15M</span>
+Annual insurance savings: <span class="info-value">$1M–$3M+</span>
+Payback period: <span class="info-value">2–5 years</span></div>
+    </div>
+  </div>
+
+  <div class="section" style="border-bottom:none;" data-panel="about">
+    <div class="section-header" onclick="toggleSectionCollapse(this)">
+      <h3>About</h3>
+      <span class="collapse-arrow">&#x25bc;</span>
+    </div>
+    <div class="section-body">
+      <p style="font-size:11px; line-height:1.5; color:#888;">
+        HydroDome uses industrial-grade Big Gun sprinklers mounted on 30ft towers to create humidity domes that protect structures from wildfire. Each tower covers ~7 ha (150m radius) at 720–850 GPM. River-draw pump system supplies water directly from Fraser/Quesnel Rivers. This model simulates the West Fraser Quesnel Sawmill complex for pilot deployment feasibility.
+      </p>
+      <p style="font-size:10px; color:#555; margin-top:8px;">&copy; 2025 Carmanah Wildfire Defense</p>
+    </div>
+  </div>
+</div>
+
+<div id="map-container">
+  <div id="map"></div>
+  <canvas id="spray-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:450;"></canvas>
+  <div id="map-tooltip" class="hidden">Click map to place tower</div>
+  <div id="sim-clock">T+00:00</div>
+  <div id="coverage-display">
+    <div class="cov-val" id="cov-pct">0%</div>
+    <div class="cov-lbl">Site Coverage</div>
+  </div>
+  <div id="cost-overlay">
+    <div class="cost-title">Cost vs Asset Value</div>
+    <div class="cost-row"><span class="cost-label">System Cost:</span><span class="cost-value" id="cost-system" style="color:#FF6B35;">$0</span></div>
+    <div class="cost-row"><span class="cost-label">Assets Protected:</span><span class="cost-value" style="color:#e74c3c;">$200M–500M+</span></div>
+    <div class="roi-value" id="cost-roi">--</div>
+    <div style="font-size:9px;color:#666;text-align:center;">Return on Investment</div>
+  </div>
+  <div id="north-arrow" style="
+    position:absolute; top:80px; right:10px; z-index:999;
+    width:44px; height:44px; background:rgba(26,26,46,0.9);
+    border-radius:50%; border:1px solid rgba(255,255,255,0.3);
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column; pointer-events:none;
+  ">
+    <div style="font-size:9px;color:#e74c3c;font-weight:900;line-height:1;margin-bottom:-2px;">N</div>
+    <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid #e74c3c;margin-bottom:-1px;"></div>
+    <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:12px solid #fff;"></div>
+  </div>
+  <div id="wind-arrow">&#x2b07;</div>
+  <div id="legend">
+    <h4>Legend</h4>
+    <div class="legend-item"><div class="legend-color" style="background:#1a75ff;height:5px;"></div> Trunk Main (12")</div>
+    <div class="legend-item"><div class="legend-color" style="background:#4da6ff;"></div> Branch (8"–10")</div>
+    <div class="legend-item"><div class="legend-color" style="background:rgba(52,152,219,0.3);height:6px;border:1px solid #3498db;border-radius:3px;"></div> HydroDome Coverage (150m)</div>
+    <div class="legend-item"><div class="legend-circle" style="background:#e74c3c;border-color:#e74c3c;width:8px;height:8px;"></div> Hydrant / Connection</div>
+    <div class="legend-item"><div class="legend-color" style="background:#e74c3c;"></div> HIGH RISK (Log Yards/Fuel)</div>
+    <div class="legend-item"><div class="legend-color" style="background:#FF6B35;"></div> MODERATE (Processing)</div>
+    <div class="legend-item"><div class="legend-color" style="background:#f1c40f;"></div> LOW (Offices/Support)</div>
+    <div class="legend-item"><div class="legend-color" style="background:linear-gradient(90deg,#ff4400,#ff8800);height:6px;"></div> Fire Front</div>
+    <div class="legend-item"><div class="legend-circle" style="background:#ffaa00;border-color:#ff6600;width:8px;height:8px;"></div> Ember Zone</div>
+  </div>
+  <div id="timeline-bar" onclick="seekTimeline(event)">
+    <div class="tl-fill" id="tl-fill"></div>
+    <div class="tl-playhead" id="tl-playhead" style="left:0"></div>
+    <div class="tl-markers">
+      <span class="tl-mark">0:00</span><span class="tl-mark">0:30</span>
+      <span class="tl-mark">1:00</span><span class="tl-mark">1:30</span>
+      <span class="tl-mark">2:00</span><span class="tl-mark">2:30</span>
+      <span class="tl-mark">3:00</span>
+    </div>
+  </div>
+  <div id="scada-panel">
+    <div class="scada-header">
+      <span class="scada-title">&#x25a3; HYDRODOME SCADA — QUESNEL SAWMILL</span>
+      <span class="scada-close" onclick="toggleSCADA()">&#x2715;</span>
+    </div>
+    <div id="scada-content" class="scada-grid"></div>
+  </div>
+</div>
+
+<script>
+// ===================== MAP SETUP =====================
+const SITE_CENTER = [52.9974, -122.5017];
+const map = L.map('map', { zoomControl: true }).setView(SITE_CENTER, 15);
+
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap', maxZoom: 19
+});
+const satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '&copy; Esri', maxZoom: 19
+});
+const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenTopoMap', maxZoom: 17
+});
+satLayer.addTo(map);
+L.control.layers({ 'Satellite': satLayer, 'Street': osmLayer, 'Topo': topoLayer }, {}, { position:'topleft' }).addTo(map);
+
+// ===================== HAVERSINE =====================
+function haversine(a, b) {
+  const R = 6371000;
+  const dLat = (b[0]-a[0]) * Math.PI/180;
+  const dLon = (b[1]-a[1]) * Math.PI/180;
+  const lat1 = a[0]*Math.PI/180, lat2 = b[0]*Math.PI/180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+// ===================== DATA: WATER NETWORK (Approximated On-Site) =====================
+const waterMains = [
+  // M1: Main trunk line from river intake westward through complex (12" = 300mm)
+  { id:'M1', pts:[[52.9970,-122.4950],[52.9972,-122.4965],[52.9974,-122.4980],[52.9974,-122.4995],[52.9975,-122.5010],[52.9975,-122.5025],[52.9976,-122.5040],[52.9978,-122.5060],[52.9980,-122.5080]], diam:0.300, label:'M1 — Main Trunk (12")' },
+  // B1: Branch to sawmill complex (8" = 200mm)
+  { id:'B1', pts:[[52.9974,-122.4995],[52.9970,-122.5010],[52.9968,-122.5020],[52.9965,-122.5025]], diam:0.200, label:'B1 — Sawmill Branch (8")' },
+  // B2: Branch to plywood/MDF complex (8" = 200mm)
+  { id:'B2', pts:[[52.9974,-122.4995],[52.9955,-122.4990],[52.9940,-122.4995],[52.9930,-122.5000]], diam:0.200, label:'B2 — Plywood/MDF Branch (8")' },
+  // B3: Branch to kiln area (8" = 200mm)
+  { id:'B3', pts:[[52.9975,-122.5010],[52.9980,-122.5015],[52.9985,-122.5010]], diam:0.200, label:'B3 — Kiln Branch (8")' },
+  // L1: Log yard perimeter loop — west side (10" = 250mm)
+  { id:'L1', pts:[[52.9980,-122.5080],[52.9990,-122.5090],[53.0000,-122.5095],[53.0010,-122.5090],[53.0015,-122.5080]], diam:0.250, label:'L1 — Log Yard Loop West (10")' },
+  // L2: Log yard perimeter loop — east side (10" = 250mm)
+  { id:'L2', pts:[[53.0015,-122.5080],[53.0015,-122.5060],[53.0010,-122.5040],[53.0005,-122.5030],[52.9980,-122.5025]], diam:0.250, label:'L2 — Log Yard Loop East (10")' },
+  // L3: Log yard loop south connector
+  { id:'L3', pts:[[52.9980,-122.5025],[52.9978,-122.5060],[52.9980,-122.5080]], diam:0.250, label:'L3 — Log Yard Loop South (10")' },
+  // B4: East perimeter branch (8")
+  { id:'B4', pts:[[52.9972,-122.4965],[52.9960,-122.4960],[52.9950,-122.4958]], diam:0.200, label:'B4 — East Perimeter (8")' },
+  // B5: Secondary log storage branch (8")
+  { id:'B5', pts:[[53.0005,-122.5030],[53.0010,-122.5040],[53.0015,-122.5035]], diam:0.200, label:'B5 — Secondary Storage (8")' },
+  // Municipal connection line from Brownmiller Rd
+  { id:'MUN', pts:[[52.9945,-122.5050],[52.9955,-122.5040],[52.9965,-122.5030],[52.9975,-122.5025]], diam:0.200, label:'MUN — Municipal Connection (8")' },
+];
+
+const riverIntake = { lat:52.9970, lng:-122.4950, label:'Fraser River Intake' };
+const municipalConn = { lat:52.9945, lng:-122.5050, label:'Municipal Water (Brownmiller Rd)' };
+
+// ===================== BUILDINGS & STRUCTURES =====================
+// Each building has: lat, lng, w (width in degrees ~m), h (height in degrees ~m), name, risk
+const structureDefs = [
+  // Core Sawmill Complex
+  { lat:52.9970, lng:-122.5020, w:0.0018, h:0.0007, name:'Main Sawmill Building', risk:'orange' },
+  { lat:52.9975, lng:-122.5008, w:0.0009, h:0.00035, name:'Planer Mill', risk:'orange' },
+  { lat:52.9982, lng:-122.5015, w:0.00055, h:0.00018, name:'Kiln Building 1', risk:'orange' },
+  { lat:52.9982, lng:-122.5008, w:0.00055, h:0.00018, name:'Kiln Building 2', risk:'orange' },
+  { lat:52.9982, lng:-122.5001, w:0.00055, h:0.00018, name:'Kiln Building 3', risk:'orange' },
+  { lat:52.9982, lng:-122.4994, w:0.00055, h:0.00018, name:'Kiln Building 4', risk:'orange' },
+  { lat:52.9965, lng:-122.5030, w:0.00028, h:0.00013, name:'Sawmill Office / Admin', risk:'yellow' },
+  // Plywood & MDF Complex
+  { lat:52.9935, lng:-122.5000, w:0.0014, h:0.00055, name:'Plywood Mill (Quesnel Plywood)', risk:'orange' },
+  { lat:52.9928, lng:-122.4985, w:0.0011, h:0.00045, name:'WestPine MDF Plant', risk:'orange' },
+  { lat:52.9940, lng:-122.5020, w:0.0018, h:0.00027, name:'Chip Storage / Conveyor Area', risk:'orange' },
+  // Log Yards — HIGHEST RISK
+  { lat:52.9980, lng:-122.5080, w:0.0036, h:0.0018, name:'Primary Log Sort Yard', risk:'red' },
+  { lat:53.0010, lng:-122.5040, w:0.0027, h:0.00135, name:'Secondary Log Storage', risk:'red' },
+  { lat:53.0020, lng:-122.5080, w:0.0020, h:0.0010, name:'Pinecrest Rd Log Storage (AUG 2024 FIRE)', risk:'fire' },
+  // Support Infrastructure
+  { lat:52.9950, lng:-122.5050, w:0.00035, h:0.00015, name:'Truck Scale / Weigh Station', risk:'yellow' },
+  { lat:52.9960, lng:-122.5035, w:0.00055, h:0.00027, name:'Maintenance Shop', risk:'yellow' },
+  { lat:52.9958, lng:-122.4970, w:0.00020, h:0.00015, name:'Fuel Storage (HIGH RISK)', risk:'fire' },
+];
+
+// Rail siding - linear feature
+const railSiding = [
+  [52.9930,-122.5060],[52.9940,-122.5045],[52.9955,-122.5025],[52.9970,-122.5005],[52.9985,-122.4985]
+];
+
+// ===================== LAYER GROUPS =====================
+const layers = {
+  pipes: L.layerGroup().addTo(map),
+  hydrants: L.layerGroup().addTo(map),
+  buildings: L.layerGroup().addTo(map),
+  coverage: L.layerGroup().addTo(map),
+  towers: L.layerGroup().addTo(map),
+  simSpray: L.layerGroup().addTo(map),
+  fire: L.layerGroup().addTo(map),
+  riskZones: L.layerGroup().addTo(map),
+};
+
+// ===================== RENDER WATER MAINS =====================
+const pipePolylines = [];
+waterMains.forEach(function(m) {
+  var color = m.diam >= 0.25 ? '#1a75ff' : '#4da6ff';
+  var weight = m.diam >= 0.25 ? 5 : 3;
+  var pl = L.polyline(m.pts, { color:color, weight:weight, opacity:0.8 })
+    .bindTooltip(m.label + '<br>&Oslash;' + (m.diam*1000).toFixed(0) + 'mm', { className:'pipe-tooltip' });
+  pl._pipeData = m;
+  pl._origColor = color;
+  pl._origWeight = weight;
+  pipePolylines.push(pl);
+  layers.pipes.addLayer(pl);
+});
+
+// Flow direction arrows on main trunk
+var arrowHead = L.polyline([], {}).addTo(layers.pipes); // placeholder
+waterMains.forEach(function(m) {
+  if (m.id !== 'M1') return;
+  for (var i = 0; i < m.pts.length - 1; i += 2) {
+    var mid = [(m.pts[i][0]+m.pts[i+1][0])/2, (m.pts[i][1]+m.pts[i+1][1])/2];
+    var arrowIcon = L.divIcon({
+      html:'<div style="color:#3498db;font-size:14px;transform:rotate(-90deg);">&#x25B6;</div>',
+      iconSize:[14,14], iconAnchor:[7,7], className:''
+    });
+    L.marker(mid, { icon:arrowIcon, interactive:false }).addTo(layers.pipes);
+  }
+});
+
+// ===================== RENDER HYDRANTS =====================
+var hydrantPositions = [];
+waterMains.forEach(function(m) {
+  m.pts.forEach(function(p) { hydrantPositions.push(p); });
+});
+// Deduplicate
+var uniqueHydrants = [];
+hydrantPositions.forEach(function(h) {
+  if (!uniqueHydrants.some(function(u) { return haversine(u, h) < 80; })) uniqueHydrants.push(h);
+});
+uniqueHydrants.forEach(function(h) {
+  L.circleMarker(h, { radius:4, color:'#e74c3c', fillColor:'#e74c3c', fillOpacity:0.8, weight:1 })
+    .bindTooltip('Hydrant / Connection Point').addTo(layers.hydrants);
+});
+
+// ===================== RENDER BUILDINGS =====================
+const RISK_COLORS = {
+  red: { color:'#e74c3c', fill:'#e74c3c', opacity:0.45 },
+  orange: { color:'#FF6B35', fill:'#FF6B35', opacity:0.40 },
+  yellow: { color:'#f1c40f', fill:'#f1c40f', opacity:0.35 },
+  fire: { color:'#ff0000', fill:'#ff0000', opacity:0.55 },
+};
+
+const buildings = [];
+const buildingRects = [];
+structureDefs.forEach(function(s, i) {
+  var rc = RISK_COLORS[s.risk] || RISK_COLORS.yellow;
+  var bounds = [
+    [s.lat - s.h/2, s.lng - s.w/2],
+    [s.lat + s.h/2, s.lng + s.w/2]
+  ];
+  var rect = L.rectangle(bounds, {
+    color: rc.color, fillColor: rc.fill, fillOpacity: rc.opacity, weight: 2,
+    dashArray: s.risk === 'fire' ? '6,4' : null
+  }).bindTooltip('<b>' + s.name + '</b><br>Risk: ' + s.risk.toUpperCase());
+
+  if (s.risk === 'fire') {
+    // Add pulsing fire hazard indicator
+    var fireIcon = L.divIcon({
+      html:'<div style="font-size:20px;text-shadow:0 0 8px #ff4400;animation:ember-flicker 0.6s infinite alternate;">&#x1f525;</div>',
+      iconSize:[20,20], iconAnchor:[10,10], className:''
+    });
+    L.marker([s.lat, s.lng], { icon:fireIcon, interactive:false }).addTo(layers.riskZones);
+  }
+
+  rect._buildingData = { lat:s.lat, lng:s.lng, id:i, name:s.name, risk:s.risk };
+  rect._protectionState = 'unprotected';
+  buildingRects.push(rect);
+  layers.buildings.addLayer(rect);
+  buildings.push({ lat:s.lat, lng:s.lng, id:i, name:s.name, risk:s.risk });
+});
+
+// Rail siding
+L.polyline(railSiding, { color:'#888', weight:3, opacity:0.6, dashArray:'10,6' })
+  .bindTooltip('Rail Siding').addTo(layers.buildings);
+
+// Water source markers
+var intakeIcon = L.divIcon({ html:'<div style="font-size:20px;">&#x1f4a7;</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' });
+L.marker([riverIntake.lat, riverIntake.lng], { icon:intakeIcon })
+  .bindPopup('<b>Primary Water Source</b><br>Fraser River Intake<br>Capacity: 12,000+ GPM').addTo(map);
+
+var munIcon = L.divIcon({ html:'<div style="font-size:16px;">&#x1f6b0;</div>', iconSize:[20,20], iconAnchor:[10,10], className:'' });
+L.marker([municipalConn.lat, municipalConn.lng], { icon:munIcon })
+  .bindPopup('<b>Municipal Water Connection</b><br>City of Quesnel<br>Backup: 200 GPM').addTo(map);
+
+// Site boundary
+var siteBoundary = L.polygon([
+  [53.003,-122.515],[53.003,-122.490],[52.990,-122.490],[52.990,-122.515]
+], { color:'#FF6B35', fill:false, weight:2, dashArray:'8,6', opacity:0.6 }).addTo(map);
+
+// ===================== CONSTANTS =====================
+const SITE_AREA_HA = 80;
+const TOWER_RADIUS_M = 150;
+const TOWER_COVERAGE_HA = Math.PI * TOWER_RADIUS_M * TOWER_RADIUS_M / 10000;
+const TOWER_GPM = 785; // midpoint of 720-850
+const COST_PER_TOWER = 650000; // ~$650k per industrial tower
+const CISTERN_MAX = 20000; // 20,000 gal per industrial cistern
+const SPRAY_GPM = 785;
+const SOURCE_INFLOW_GPM = 12000; // river draw
+const SIM_DURATION_MIN = 180;
+const ZONE_COLORS = ['#3498db', '#2ecc71', '#9b59b6', '#FF6B35', '#e74c3c', '#1abc9c'];
+const PUMP_LEVELS = [100, 90, 80, 70, 60];
+
+// ===================== TOWER MANAGEMENT =====================
+let towers = [];
+let placeMode = false;
+let ignitionMode = false;
+let simulated = false;
+
+function makeTowerIcon(label, color, cisternPct) {
+  var bg = color || '#FF6B35';
+  var cPct = cisternPct != null ? cisternPct : -1;
+  var cisternColor = cPct > 60 ? '#3498db' : cPct > 30 ? '#f1c40f' : '#e74c3c';
+  var cisternBar = cPct >= 0 ? '<div style="width:32px;height:5px;background:rgba(0,0,0,0.6);border-radius:3px;margin-top:2px;border:1px solid rgba(255,255,255,0.3);"><div style="width:'+cPct+'%;height:100%;background:'+cisternColor+';border-radius:2px;"></div></div>' : '';
+  return L.divIcon({
+    html: '<div style="text-align:center;"><div style="width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 40% 35%, '+bg+', '+bg+'aa);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;font-weight:bold;">&#x1f5fc;</div>'+cisternBar+'</div>',
+    iconSize: [28, 38], iconAnchor: [14, 14], className: ''
+  });
+}
+var defaultTowerIcon = makeTowerIcon(null, '#FF6B35', -1);
+
+function togglePlaceMode() {
+  if (ignitionMode) toggleIgnitionMode();
+  placeMode = !placeMode;
+  var btn = document.getElementById('btn-place');
+  var tip = document.getElementById('map-tooltip');
+  if (placeMode) {
+    btn.classList.add('active'); btn.textContent = '\u{1f5fc} PLACING \u2014 Click Map';
+    tip.textContent = 'Click map to place tower'; tip.classList.remove('hidden');
+    map.getContainer().style.cursor = 'crosshair';
+  } else {
+    btn.classList.remove('active'); btn.textContent = '\u{1f5fc} Place Tower Mode';
+    tip.classList.add('hidden'); map.getContainer().style.cursor = '';
+  }
+}
+
+function toggleIgnitionMode() {
+  if (placeMode) togglePlaceMode();
+  ignitionMode = !ignitionMode;
+  var btn = document.getElementById('btn-ignition');
+  var tip = document.getElementById('map-tooltip');
+  if (ignitionMode) {
+    btn.classList.add('active'); btn.textContent = '\u{1f525} CLICK MAP to set fire';
+    tip.textContent = 'Click map to set ignition point'; tip.classList.remove('hidden');
+    map.getContainer().style.cursor = 'crosshair';
+  } else {
+    btn.classList.remove('active'); btn.textContent = '\u{1f525} Set Ignition Point';
+    tip.classList.add('hidden'); map.getContainer().style.cursor = '';
+  }
+}
+
+map.on('click', function(e) {
+  if (placeMode) { addTower(e.latlng.lat, e.latlng.lng); }
+  else if (ignitionMode) { setIgnitionPoint(e.latlng.lat, e.latlng.lng); toggleIgnitionMode(); }
+});
+
+function addTower(lat, lng) {
+  var id = Date.now() + Math.random();
+  var marker = L.marker([lat, lng], { icon: defaultTowerIcon, draggable: true })
+    .bindPopup('<b>HydroDome Tower</b><br>'+TOWER_GPM+' GPM @ 150m radius<br><button onclick="removeTower('+id+')" style="margin-top:6px;padding:4px 10px;background:#c0392b;color:#fff;border:none;border-radius:4px;cursor:pointer;">Remove</button>')
+    .addTo(layers.towers);
+  marker.on('contextmenu', function() { removeTower(id); });
+  marker.on('dragend', function() { updateCoverage(); updateStats(); });
+
+  var circle = L.circle([lat, lng], {
+    radius: TOWER_RADIUS_M, color: '#3498db', fillColor: '#3498db',
+    fillOpacity: 0.12, weight: 2, opacity: 0.5
+  }).addTo(layers.coverage);
+  marker.on('drag', function(e) { circle.setLatLng(e.latlng); });
+
+  towers.push({ id:id, marker:marker, circle:circle, lat:lat, lng:lng });
+  simulated = false;
+  updateCoverage(); updateStats(); updateCostOverlay();
+}
+
+function removeTower(id) {
+  var idx = towers.findIndex(function(t) { return t.id === id; });
+  if (idx === -1) return;
+  var t = towers[idx];
+  layers.towers.removeLayer(t.marker);
+  layers.coverage.removeLayer(t.circle);
+  towers.splice(idx, 1);
+  simulated = false;
+  updateCoverage(); updateStats(); updateCostOverlay();
+}
+
+// ===================== COVERAGE =====================
+function updateCoverage() {
+  var covered = 0;
+  buildings.forEach(function(b, i) {
+    var isCovered = towers.some(function(t) {
+      var tPos = t.marker.getLatLng();
+      return haversine([tPos.lat, tPos.lng], [b.lat, b.lng]) <= TOWER_RADIUS_M;
+    });
+    if (isCovered) covered++;
+    if (!timeSimRunning) {
+      var rect = buildingRects[i];
+      var origRc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
+      if (isCovered) {
+        rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity:0.5 });
+        rect._protectionState = 'protected';
+      } else {
+        rect.setStyle({ color:origRc.color, fillColor:origRc.fill, fillOpacity:origRc.opacity });
+        rect._protectionState = 'unprotected';
+      }
+    }
+  });
+  var pct = buildings.length > 0 ? Math.round(covered / buildings.length * 100) : 0;
+  document.getElementById('cov-pct').textContent = pct + '%';
+  document.getElementById('cov-pct').style.color = pct > 80 ? '#2ecc71' : pct > 50 ? '#f1c40f' : '#e74c3c';
+  document.getElementById('stat-protected').textContent = covered + '/' + buildings.length + ' structures protected';
+}
+
+// ===================== COST OVERLAY =====================
+function updateCostOverlay() {
+  var n = towers.length;
+  var cost = n * COST_PER_TOWER;
+  var costM = (cost / 1000000).toFixed(1);
+  var roi = cost > 0 ? Math.round(350000000 / cost) : 0;
+  document.getElementById('cost-system').textContent = n === 0 ? '$0' : '$' + costM + 'M';
+  document.getElementById('cost-roi').textContent = n === 0 ? '\u2014' : roi + ':1';
+}
+
+// ===================== ZONES =====================
+function computeZones() {
+  var MAX_ZONE_SIZE = 4;
+  var assigned = new Set();
+  var zones = [];
+  towers.forEach(function(t, i) {
+    if (assigned.has(i)) return;
+    var zone = [i]; assigned.add(i);
+    towers.forEach(function(t2, j) {
+      if (assigned.has(j)) return;
+      if (zone.length >= MAX_ZONE_SIZE) return;
+      var d = haversine(
+        [t.marker.getLatLng().lat, t.marker.getLatLng().lng],
+        [t2.marker.getLatLng().lat, t2.marker.getLatLng().lng]
+      );
+      if (d <= 400) { zone.push(j); assigned.add(j); }
+    });
+    zones.push(zone);
+  });
+  return zones;
+}
+
+// ===================== PIPE CAPACITY =====================
+function pipeCapacityGPM(diamMeters) {
+  var C = 120; var S = 0.01;
+  var dInches = diamMeters * 39.37;
+  return 0.2785 * C * Math.pow(dInches, 2.63) * Math.pow(S, 0.54);
+}
+
+function findNearestPipe(latlng) {
+  var best = waterMains[0]; var bestDist = Infinity;
+  waterMains.forEach(function(m) {
+    m.pts.forEach(function(p) {
+      var d = haversine([latlng.lat, latlng.lng], p);
+      if (d < bestDist) { bestDist = d; best = m; }
+    });
+  });
+  return best;
+}
+
+// ===================== STATS =====================
+function updateStats() {
+  var n = towers.length;
+  var zones = computeZones();
+  var flowTotal = n * TOWER_GPM;
+  var coverageHa = Math.min(n * TOWER_COVERAGE_HA, SITE_AREA_HA * 1.5).toFixed(1);
+  var costTotal = n * COST_PER_TOWER;
+
+  document.getElementById('stat-towers').textContent = n;
+  document.getElementById('stat-zones').textContent = zones.length;
+  document.getElementById('stat-flow').textContent = Math.round(flowTotal);
+  document.getElementById('stat-coverage').textContent = coverageHa;
+  document.getElementById('stat-cost').textContent = n === 0 ? '$0' :
+    '$' + (costTotal/1000000).toFixed(2) + 'M';
+
+  var systemCapacity = SOURCE_INFLOW_GPM;
+  var loadPct = n === 0 ? 0 : Math.min((flowTotal / systemCapacity) * 100, 150);
+  var fill = document.getElementById('capacity-fill');
+  var badge = document.getElementById('status-badge');
+  var capLabel = document.getElementById('capacity-label');
+
+  fill.style.width = Math.min(loadPct, 100) + '%';
+  if (n === 0) {
+    fill.style.background = '#2ecc71'; badge.className = 'status-badge status-green';
+    badge.textContent = 'STANDBY'; capLabel.textContent = 'No towers placed';
+  } else if (loadPct < 60) {
+    fill.style.background = '#2ecc71'; badge.className = 'status-badge status-green';
+    badge.textContent = 'ADEQUATE'; capLabel.textContent = 'Demand: ' + Math.round(flowTotal) + ' / ' + systemCapacity + ' GPM (' + loadPct.toFixed(0) + '%)';
+  } else if (loadPct < 85) {
+    fill.style.background = '#f1c40f'; badge.className = 'status-badge status-yellow';
+    badge.textContent = 'MODERATE'; capLabel.textContent = 'Demand: ' + Math.round(flowTotal) + ' / ' + systemCapacity + ' GPM (' + loadPct.toFixed(0) + '%)';
+  } else {
+    fill.style.background = '#e74c3c'; badge.className = 'status-badge status-red';
+    badge.textContent = 'HIGH LOAD'; capLabel.textContent = 'Demand: ' + Math.round(flowTotal) + ' / ' + systemCapacity + ' GPM \u2014 consider duty cycling';
+  }
+
+  // Duty info
+  var dutyDiv = document.getElementById('duty-info');
+  if (n === 0) {
+    dutyDiv.innerHTML = 'Place towers and run simulation to see duty cycle recommendations.';
+  } else if (!timeSimRunning) {
+    dutyDiv.innerHTML =
+      '<b>' + n + ' towers</b> in <b>' + zones.length + ' zone(s)</b><br>' +
+      'Full spray demand: ' + Math.round(flowTotal) + ' GPM<br>' +
+      'River supply: <b style="color:#2ecc71;">' + systemCapacity + ' GPM</b><br>' +
+      'Industrial cistern: ' + n + ' x ' + (CISTERN_MAX/1000) + 'k gal = <b>' + (n*CISTERN_MAX/1000) + 'k gal</b> total';
+  }
+}
+
+// ===================== SIMULATION =====================
+function runSimulation() {
+  if (towers.length === 0) { alert('Place some towers first!'); return; }
+  var btn = document.getElementById('btn-sim');
+  btn.textContent = 'Simulating...'; btn.disabled = true;
+  setTimeout(function() {
+    var S = 0.01;
+    pipePolylines.forEach(function(pl) {
+      var m = pl._pipeData;
+      var Qmax = pipeCapacityGPM(m.diam);
+      var demandGPM = 0;
+      towers.forEach(function(t) {
+        var tPos = t.marker.getLatLng();
+        var near = m.pts.some(function(p) { return haversine([tPos.lat, tPos.lng], p) < 200; });
+        if (near) demandGPM += TOWER_GPM * 0.5;
+      });
+      if (m.id === 'M1') demandGPM = towers.length * TOWER_GPM * 0.5;
+      var loadRatio = Qmax > 0 ? demandGPM / Qmax : 0;
+      var color;
+      if (loadRatio < 0.60) color = '#2ecc71';
+      else if (loadRatio < 0.85) color = '#f1c40f';
+      else color = '#e74c3c';
+      pl.setStyle({ color:color, weight: m.diam >= 0.25 ? 6 : 4, opacity:1 });
+      pl.setTooltipContent(m.label + '<br>Capacity: ' + Math.round(Qmax) + ' GPM<br>Demand: ' + Math.round(demandGPM) + ' GPM<br>Load: ' + (loadRatio*100).toFixed(0) + '%');
+    });
+    simulated = true;
+    btn.textContent = '\u26a1 Run Simulation'; btn.disabled = false;
+    updateStats();
+  }, 800);
+}
+
+// ===================== WIND =====================
+let windAngleDeg = 270;
+let windSpeedKmh = 15;
+
+function updateWind() {
+  windAngleDeg = parseInt(document.getElementById('wind-dir').value);
+  windSpeedKmh = parseInt(document.getElementById('wind-speed').value);
+  document.getElementById('wind-speed-val').textContent = windSpeedKmh + ' km/h';
+  var arrow = document.getElementById('wind-arrow');
+  if (windAngleDeg < 0 || windSpeedKmh === 0) { arrow.style.display = 'none'; }
+  else { arrow.style.display = 'flex'; arrow.innerHTML = '<div style="transform:rotate('+windAngleDeg+'deg);font-size:24px;">&#x2b07;</div>'; }
+}
+updateWind();
+
+// ===================== SPRAY GEOMETRY =====================
+function getSprayRadius(pumpPct) {
+  return TOWER_RADIUS_M * (0.4 + 0.6 * pumpPct / 100);
+}
+
+function computeEllipsePoints(center, baseRadius, windAngle, windSpeed, numPts) {
+  var pts = []; var n = numPts || 32;
+  if (windSpeed <= 0 || windAngle < 0) {
+    for (var i = 0; i < n; i++) {
+      var a = (2*Math.PI*i)/n;
+      pts.push([center.lat + baseRadius*Math.cos(a)/111320, center.lng + baseRadius*Math.sin(a)/(111320*Math.cos(center.lat*Math.PI/180))]);
+    }
+    return pts;
+  }
+  var stretchFactor = 1 + (windSpeed/30)*0.15;
+  var compressFactor = 1 - (windSpeed/30)*0.08;
+  var semiMajor = baseRadius * stretchFactor;
+  var semiMinor = baseRadius * compressFactor;
+  var windRad = windAngle * Math.PI / 180;
+  for (var i = 0; i < n; i++) {
+    var a = (2*Math.PI*i)/n;
+    var ex = semiMinor*Math.cos(a);
+    var ey = semiMajor*Math.sin(a);
+    var rx = ex*Math.cos(windRad) - ey*Math.sin(windRad);
+    var ry = ex*Math.sin(windRad) + ey*Math.cos(windRad);
+    pts.push([center.lat + ry/111320, center.lng + rx/(111320*Math.cos(center.lat*Math.PI/180))]);
+  }
+  return pts;
+}
+
+// ===================== TIME SIMULATION ENGINE =====================
+let timeSimRunning = false;
+let simSpeed = 1;
+let timeSimPaused = false;
+let simMinute = 0;
+let simInterval = null;
+let simTowerState = [];
+let simZoneState = [];
+let simZones = [];
+let pulsePhase = 0;
+
+function toggleTimeSim() {
+  if (timeSimRunning) { if (timeSimPaused) resumeTimeSim(); else pauseTimeSim(); return; }
+  startTimeSim();
+}
+
+function startTimeSim() {
+  if (towers.length === 0) { alert('Place some towers first!'); return; }
+  timeSimRunning = true; timeSimPaused = false; simMinute = 0; pulsePhase = 0;
+
+  simZones = computeZones();
+  simZoneState = simZones.map(function(ti, zi) {
+    return { phase:'spray', minutesInPhase:0, towerIndices:ti, manualOverride:null };
+  });
+  simTowerState = towers.map(function(t, ti) {
+    var zi = simZones.findIndex(function(z) { return z.includes(ti); });
+    return { active:true, pumpPct:PUMP_LEVELS[ti%PUMP_LEVELS.length], cisternGal:CISTERN_MAX, sprayLayer:null, inactiveRing:null, zoneIdx:zi, _refillGPM:0 };
+  });
+  towers.forEach(function(t) { t.circle.setStyle({ opacity:0, fillOpacity:0 }); });
+
+  document.getElementById('sim-clock').style.display = 'block';
+  document.getElementById('speed-controls').style.display = 'block';
+  setSimSpeed(1);
+  document.getElementById('timeline-bar').style.display = 'block';
+  document.getElementById('duty-section').style.display = 'none';
+  document.getElementById('sim-live-section').style.display = 'block';
+  document.getElementById('zone-triage-section').style.display = 'block';
+  if (ignitionPoint) { document.getElementById('fire-section').style.display = 'block'; startFire(); }
+  document.getElementById('btn-timesim').textContent = '\u23f8 Pause';
+  document.getElementById('btn-timesim').className = 'btn btn-danger';
+  document.getElementById('legend').style.bottom = '65px';
+
+  simTick();
+  simInterval = setInterval(simTick, 500);
+}
+
+function pauseTimeSim() {
+  timeSimPaused = true; clearInterval(simInterval);
+  document.getElementById('btn-timesim').textContent = '\u25b6 Resume';
+  document.getElementById('btn-timesim').className = 'btn btn-timesim';
+}
+
+function resumeTimeSim() {
+  timeSimPaused = false; simInterval = setInterval(simTick, 500);
+  document.getElementById('btn-timesim').textContent = '\u23f8 Pause';
+  document.getElementById('btn-timesim').className = 'btn btn-danger';
+}
+
+function stopTimeSim() {
+  timeSimRunning = false; timeSimPaused = false; clearInterval(simInterval);
+  layers.simSpray.clearLayers();
+  simTowerState.forEach(function(s) { s.sprayLayer = null; s.inactiveRing = null; });
+  towers.forEach(function(t) { t.marker.setIcon(defaultTowerIcon); t.circle.setStyle({ opacity:0.5, fillOpacity:0.12 }); });
+  buildingRects.forEach(function(rect, i) {
+    var b = buildings[i];
+    var rc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
+    rect.setStyle({ color:rc.color, fillColor:rc.fill, fillOpacity:rc.opacity });
+    rect._protectionState = 'unprotected';
+  });
+  clearFireVisuals();
+  document.getElementById('sim-clock').style.display = 'none';
+  document.getElementById('timeline-bar').style.display = 'none';
+  document.getElementById('duty-section').style.display = 'block';
+  document.getElementById('sim-live-section').style.display = 'none';
+  document.getElementById('zone-triage-section').style.display = 'none';
+  document.getElementById('fire-section').style.display = 'none';
+  document.getElementById('btn-timesim').textContent = '\u25b6 Run Time Simulation';
+  document.getElementById('btn-timesim').className = 'btn btn-timesim';
+  document.getElementById('speed-controls').style.display = 'none';
+  document.getElementById('legend').style.bottom = '20px';
+  updateStats(); updateCoverage();
+}
+
+function simTick() {
+  if (simMinute >= SIM_DURATION_MIN) { stopTimeSim(); return; }
+  pulsePhase += 0.15;
+  var totalZones = simZones.length;
+
+  simZoneState.forEach(function(zs, zi) {
+    if (zs.manualOverride) { zs.phase = zs.manualOverride; return; }
+    if (simMinute < 10) { zs.phase = 'spray'; }
+    else {
+      var relayMin = simMinute - 10;
+      var cyclePos = Math.floor(relayMin / 10);
+      var az1 = (cyclePos * 2) % totalZones;
+      var az2 = (cyclePos * 2 + 1) % totalZones;
+      zs.phase = (zi === az1 || zi === az2) ? 'spray' : 'refill';
+    }
+  });
+
+  var pulseOpacity = 0.15 + 0.15 * (0.5 + 0.5 * Math.sin(pulsePhase));
+  var totalMainsDemand = 0;
+
+  simTowerState.forEach(function(ts, ti) {
+    var zs = simZoneState[ts.zoneIdx];
+    var posInZone = zs.towerIndices.indexOf(ti);
+    var levelIdx = (posInZone + Math.floor(simMinute)) % PUMP_LEVELS.length;
+    var zoneActive = zs.phase === 'spray';
+
+    if (zoneActive && ts.cisternGal > 0) {
+      ts.active = true; ts.pumpPct = PUMP_LEVELS[levelIdx];
+    } else { ts.active = false; ts.pumpPct = 0; }
+
+    // Refill / drain
+    var refillGPM = zoneActive ? 0 : SOURCE_INFLOW_GPM / towers.length;
+    ts._refillGPM = refillGPM;
+
+    if (ts.active && ts.cisternGal > 0) {
+      var drain = (ts.pumpPct / 100) * SPRAY_GPM;
+      ts.cisternGal = Math.max(0, Math.min(CISTERN_MAX, ts.cisternGal + (refillGPM - drain) * simSpeed));
+      totalMainsDemand += drain;
+      if (ts.cisternGal <= 0) { ts.active = false; ts.pumpPct = 0; }
+    } else {
+      ts.cisternGal = Math.min(CISTERN_MAX, ts.cisternGal + refillGPM * simSpeed);
+    }
+
+    var zoneColor = ts.active ? ZONE_COLORS[ts.zoneIdx % ZONE_COLORS.length] : '#666';
+    var cisternPct = Math.round(ts.cisternGal / CISTERN_MAX * 100);
+    towers[ti].marker.setIcon(makeTowerIcon('', zoneColor, cisternPct));
+
+    var tPos = towers[ti].marker.getLatLng();
+    if (ts.sprayLayer) { layers.simSpray.removeLayer(ts.sprayLayer); ts.sprayLayer = null; }
+    if (ts.inactiveRing) { layers.simSpray.removeLayer(ts.inactiveRing); ts.inactiveRing = null; }
+
+    if (ts.active && ts.pumpPct > 0) {
+      var radius = getSprayRadius(ts.pumpPct);
+      var pts = computeEllipsePoints(tPos, radius, windAngleDeg, windSpeedKmh, 32);
+      ts.sprayLayer = L.polygon(pts, {
+        color: ZONE_COLORS[ts.zoneIdx % ZONE_COLORS.length],
+        fillColor: '#3498db', fillOpacity: pulseOpacity, weight: 2, opacity: 0.6
+      });
+      layers.simSpray.addLayer(ts.sprayLayer);
+    } else {
+      var pts = computeEllipsePoints(tPos, TOWER_RADIUS_M, -1, 0, 32);
+      ts.inactiveRing = L.polygon(pts, {
+        color:'#888', fillColor:'transparent', fillOpacity:0,
+        weight:1.5, opacity:0.4, dashArray:'6,4'
+      });
+      layers.simSpray.addLayer(ts.inactiveRing);
+    }
+  });
+
+  // Building protection
+  var protectedCount = 0;
+  buildings.forEach(function(b, i) {
+    var rect = buildingRects[i];
+    var isProtected = simTowerState.some(function(ts, ti) {
+      if (!ts.active || ts.pumpPct <= 0) return false;
+      var tPos = towers[ti].marker.getLatLng();
+      return haversine([tPos.lat, tPos.lng], [b.lat, b.lng]) <= getSprayRadius(ts.pumpPct);
+    });
+    if (isProtected) {
+      rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity: 0.4 + 0.3*(0.5+0.5*Math.sin(pulsePhase)) });
+      rect._protectionState = 'protected'; protectedCount++;
+    } else if (fireActive && isPointInFireZone(b.lat, b.lng)) {
+      rect.setStyle({ color:'#e74c3c', fillColor:'#e74c3c', fillOpacity:0.7 });
+      rect._protectionState = 'atrisk';
+    } else {
+      var rc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
+      rect.setStyle({ color:rc.color, fillColor:rc.fill, fillOpacity:rc.opacity });
+      rect._protectionState = 'unprotected';
+    }
+  });
+  document.getElementById('stat-protected').textContent = protectedCount + '/' + buildings.length + ' structures protected';
+
+  if (fireActive) fireSimTick();
+
+  var totalMin = Math.floor(simMinute);
+  var hh = Math.floor(totalMin / 60);
+  var mm = totalMin % 60;
+  var phaseTag = simMinute < 10 ? 'P1: SATURATION' : 'P2: RELAY';
+  document.getElementById('sim-clock').textContent = 'T+' + hh + ':' + String(mm).padStart(2,'0') + '  [' + simSpeed + 'x]  ' + phaseTag;
+  var pct = (simMinute / SIM_DURATION_MIN) * 100;
+  document.getElementById('tl-fill').style.width = pct + '%';
+  document.getElementById('tl-playhead').style.left = pct + '%';
+
+  updateSimPanel();
+  updateTriagePanel();
+  if (scadaVisible) updateSCADAPanel();
+  simMinute += simSpeed;
+}
+
+function setSimSpeed(speed) { simSpeed = speed; var sl = document.getElementById('speed-slider'); if(sl) sl.value = speedToSlider(speed); updateSpeedLabel(); }
+function sliderToSpeed(val) { val=Number(val); if(val<=0) return 1; return Math.round(Math.pow(10, val/50)*10)/10; }
+function speedToSlider(speed) { if(speed<=1) return 0; return Math.round(50*Math.log10(speed)); }
+function setSimSpeedFromSlider(val) { simSpeed = sliderToSpeed(val); updateSpeedLabel(); }
+function updateSpeedLabel() { var l=document.getElementById('speed-label'); if(l){l.textContent=(simSpeed>=10?Math.round(simSpeed):simSpeed.toFixed(1).replace(/\.0$/,''))+'x';} }
+
+function seekTimeline(e) {
+  if (!timeSimRunning) return;
+  var bar = document.getElementById('timeline-bar');
+  var rect = bar.getBoundingClientRect();
+  var pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  simMinute = Math.floor(pct * SIM_DURATION_MIN);
+  simTowerState.forEach(function(ts) { ts.cisternGal = CISTERN_MAX * 0.6; });
+}
+
+function updateSimPanel() {
+  var panel = document.getElementById('sim-live-panel');
+  var totalFlow = 0, totalCistern = 0;
+  simTowerState.forEach(function(ts) { if(ts.active) totalFlow += (ts.pumpPct/100)*SPRAY_GPM; totalCistern += ts.cisternGal; });
+  var avgCisternPct = towers.length > 0 ? Math.round(totalCistern / (towers.length * CISTERN_MAX) * 100) : 0;
+
+  var phaseLabel;
+  if (simMinute < 10) {
+    phaseLabel = '<div style="background:rgba(231,76,60,0.2);border:1px solid #e74c3c;border-radius:4px;padding:4px 8px;margin:4px 0;text-align:center;"><span style="color:#e74c3c;font-weight:700;">PHASE 1: INITIAL SATURATION</span><br><span style="font-size:10px;color:#aaa;">All zones spraying simultaneously</span></div>';
+  } else {
+    var tz = simZones.length;
+    var relayMin = simMinute - 10;
+    var cyclePos = Math.floor(relayMin / 10);
+    var az1 = (cyclePos*2)%tz;
+    var az2 = (cyclePos*2+1)%tz;
+    var nextRot = 10 - (relayMin % 10);
+    phaseLabel = '<div style="background:rgba(52,152,219,0.15);border:1px solid #3498db;border-radius:4px;padding:4px 8px;margin:4px 0;text-align:center;"><span style="color:#3498db;font-weight:700;">PHASE 2: ZONE RELAY</span><br><span style="font-size:10px;color:#aaa;">Active: Zone '+(az1+1)+' + Zone '+(az2+1)+' | Next rotation: '+Math.ceil(nextRot)+' min</span></div>';
+  }
+
+  var hh = Math.floor(Math.floor(simMinute)/60);
+  var mmm = Math.floor(simMinute) % 60;
+  var html = '<div class="sim-stat-row"><span>Sim Time</span><span class="sim-stat-val" style="color:#3498db;">T+'+hh+':'+String(mmm).padStart(2,'0')+'</span></div>';
+  html += phaseLabel;
+  html += '<div style="margin:6px 0 4px;font-size:10px;color:#FF6B35;text-transform:uppercase;letter-spacing:1px;">Zone Status</div>';
+  simZoneState.forEach(function(zs, zi) {
+    var color = ZONE_COLORS[zi%ZONE_COLORS.length];
+    var statusText = zs.phase === 'spray' ? 'SPRAYING' : 'REFILLING';
+    var statusColor = zs.phase === 'spray' ? color : '#666';
+    html += '<div class="sim-zone-row"><div class="sim-zone-dot" style="background:'+color+';'+(zs.phase==='refill'?'opacity:0.4':'')+'"></div><span>Zone '+(zi+1)+':</span><span style="font-weight:600;color:'+statusColor+'">'+statusText+'</span><span style="color:#888;font-size:10px;">('+zs.towerIndices.length+'t)</span></div>';
+  });
+  html += '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;">';
+  html += '<div class="sim-stat-row"><span>Active Flow</span><span class="sim-stat-val">'+Math.round(totalFlow)+' GPM</span></div>';
+  html += '<div class="sim-stat-row"><span>River Supply</span><span class="sim-stat-val" style="color:#2ecc71;">'+SOURCE_INFLOW_GPM+' GPM</span></div>';
+  html += '<div class="sim-stat-row"><span>Avg Cistern</span><span class="sim-stat-val">'+avgCisternPct+'% <span class="cistern-bar-mini"><span class="cistern-bar-mini-fill" style="width:'+avgCisternPct+'%;background:'+(avgCisternPct>30?'#3498db':'#e74c3c')+';"></span></span></span></div>';
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// ===================== ZONE TRIAGE =====================
+function toggleZoneTriage(zoneIdx) {
+  if (!timeSimRunning || !simZoneState[zoneIdx]) return;
+  var zs = simZoneState[zoneIdx];
+  if (zs.manualOverride === null) zs.manualOverride = 'spray';
+  else if (zs.manualOverride === 'spray') zs.manualOverride = 'refill';
+  else zs.manualOverride = null;
+  updateTriagePanel();
+}
+
+function updateTriagePanel() {
+  if (!timeSimRunning || !simZoneState) return;
+  var panel = document.getElementById('zone-triage-panel');
+  var html = '<div style="margin-bottom:6px;font-size:11px;color:#aaa;">Click to cycle: AUTO > SPRAY > OFF > AUTO</div>';
+  simZoneState.forEach(function(zs, zi) {
+    var color = ZONE_COLORS[zi%ZONE_COLORS.length];
+    var modeText, modeColor;
+    if (zs.manualOverride === null) { modeText='AUTO'; modeColor='#aaa'; }
+    else if (zs.manualOverride === 'spray') { modeText='FORCE ON'; modeColor=color; }
+    else { modeText='FORCE OFF'; modeColor='#666'; }
+    html += '<button onclick="toggleZoneTriage('+zi+')" style="display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;margin:4px 0;border:1px solid '+color+'40;border-radius:6px;background:'+(zs.manualOverride==='spray'?color+'20':'rgba(255,255,255,0.03)')+';cursor:pointer;color:#e0e0e0;font-size:12px;text-align:left;">' +
+      '<div style="width:12px;height:12px;border-radius:50%;background:'+color+';flex-shrink:0;'+(zs.manualOverride==='refill'?'opacity:0.3':'')+'"></div>' +
+      '<span style="flex:1;">Zone '+(zi+1)+' ('+zs.towerIndices.length+'t)</span>' +
+      '<span style="color:'+modeColor+';font-weight:600;">'+modeText+'</span></button>';
+  });
+  panel.innerHTML = html;
+}
+
+// ===================== FIRE MODELING =====================
+let ignitionPoint = null;
+let ignitionMarker = null;
+let fireActive = false;
+let fireEnabled = true;
+let fireEllipse = null;
+let fireLayer = null;
+let emberMarkers = [];
+let fireStartMinute = 0;
+let spotFires = [];
+const SPOT_FIRE_BASE_ROS = 1.5;
+const MAX_SPOT_FIRES = 8;
+
+function setIgnitionPoint(lat, lng) {
+  if (ignitionMarker) map.removeLayer(ignitionMarker);
+  ignitionPoint = { lat:lat, lng:lng };
+  var fireIcon = L.divIcon({ html:'<div style="font-size:24px;text-shadow:0 0 8px #ff4400;">&#x1f525;</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' });
+  ignitionMarker = L.marker([lat, lng], { icon:fireIcon })
+    .bindPopup('<b>Ignition Point</b><br>'+lat.toFixed(4)+'N, '+Math.abs(lng).toFixed(4)+'W<br><button onclick="removeIgnition()" style="margin-top:4px;padding:3px 8px;background:#c0392b;color:#fff;border:none;border-radius:3px;cursor:pointer;">Remove</button>')
+    .addTo(map);
+  document.getElementById('btn-fire-toggle').style.display = 'block';
+}
+
+function removeIgnition() {
+  if (ignitionMarker) { map.removeLayer(ignitionMarker); ignitionMarker = null; }
+  ignitionPoint = null; clearFireVisuals();
+  document.getElementById('btn-fire-toggle').style.display = 'none';
+}
+
+function toggleFireBehavior() {
+  fireEnabled = !fireEnabled;
+  var btn = document.getElementById('btn-fire-toggle');
+  if (fireEnabled) { btn.textContent = '\u{1f525} Fire Model: ON'; btn.style.borderColor = '#e74c3c'; btn.style.color = '#e74c3c'; }
+  else { btn.textContent = '\u{1f525} Fire Model: OFF'; btn.style.borderColor = '#666'; btn.style.color = '#666'; clearFireVisuals(); }
+}
+
+function startFire() {
+  if (!ignitionPoint) return;
+  fireActive = true; fireStartMinute = simMinute;
+  fireEllipse = { centerLat:ignitionPoint.lat, centerLng:ignitionPoint.lng, semiMajor:10, semiMinor:10, angle:0, _blockedRays:null };
+  document.getElementById('fire-section').style.display = 'block';
+}
+
+function clearFireVisuals() {
+  fireActive = false;
+  if (fireLayer) { layers.fire.removeLayer(fireLayer); fireLayer = null; }
+  emberMarkers.forEach(function(m) { layers.fire.removeLayer(m); });
+  emberMarkers = []; spotFires = [];
+}
+
+function fireSimTick() {
+  if (!fireActive || !ignitionPoint || !fireEllipse || !fireEnabled) return;
+  var speedMult = parseFloat(document.getElementById('fire-speed-mult').value) || 2;
+  var minutesElapsed = simMinute - fireStartMinute;
+  var baseROS = 2.0;
+  var windFactor = Math.exp(0.115 * windSpeedKmh);
+  var spreadRate = baseROS * windFactor * speedMult;
+  var lb_ratio = 1 + 0.25 * windSpeedKmh;
+  var semiMajor = spreadRate * minutesElapsed;
+  var semiMinor = semiMajor / lb_ratio;
+  var windRad = windAngleDeg >= 0 ? windAngleDeg * Math.PI / 180 : 0;
+  var centerShift = semiMajor * 0.3;
+  var fireCenterLat = ignitionPoint.lat + (centerShift * Math.cos(windRad)) / 111320;
+  var fireCenterLng = ignitionPoint.lng + (centerShift * Math.sin(windRad)) / (111320 * Math.cos(ignitionPoint.lat * Math.PI / 180));
+
+  fireEllipse.centerLat = fireCenterLat;
+  fireEllipse.centerLng = fireCenterLng;
+  fireEllipse.semiMajor = semiMajor;
+  fireEllipse.semiMinor = semiMinor;
+  fireEllipse.angle = windRad;
+
+  if (fireLayer) { layers.fire.removeLayer(fireLayer); fireLayer = null; }
+  emberMarkers.forEach(function(m) { layers.fire.removeLayer(m); }); emberMarkers = [];
+  if (semiMajor < 5) return;
+
+  var numRays = 80;
+  var firePts = [];
+  var cosLat = Math.cos(fireCenterLat * Math.PI / 180);
+  if (!fireEllipse._blockedRays) fireEllipse._blockedRays = new Float32Array(numRays);
+  var blockedRays = fireEllipse._blockedRays;
+
+  for (var i = 0; i < numRays; i++) {
+    var a = (2*Math.PI*i)/numRays;
+    var ex = semiMinor*Math.cos(a);
+    var ey = semiMajor*Math.sin(a);
+    var ellipseDist = Math.sqrt(ex*ex + ey*ey);
+    var rx = ex*Math.cos(windRad) - ey*Math.sin(windRad);
+    var ry = ex*Math.sin(windRad) + ey*Math.cos(windRad);
+    var maxAdvance = ellipseDist;
+    var steps = 15;
+    for (var s = 1; s <= steps; s++) {
+      var frac = s/steps;
+      var checkLat = fireCenterLat + (ry*frac)/111320;
+      var checkLng = fireCenterLng + (rx*frac)/(111320*cosLat);
+      var inSpray = false;
+      for (var ti = 0; ti < simTowerState.length; ti++) {
+        var ts = simTowerState[ti];
+        if (!ts.active || ts.pumpPct <= 0) continue;
+        var tPos = towers[ti].marker.getLatLng();
+        var radius = getSprayRadius(ts.pumpPct);
+        if (haversine([tPos.lat, tPos.lng], [checkLat, checkLng]) <= radius) { inSpray = true; break; }
+      }
+      if (inSpray) { maxAdvance = Math.max(ellipseDist*frac*0.85, ellipseDist*0.05); break; }
+    }
+    var advanceFrac = ellipseDist > 0 ? maxAdvance/ellipseDist : 0;
+    firePts.push([fireCenterLat + (ry*advanceFrac)/111320, fireCenterLng + (rx*advanceFrac)/(111320*cosLat)]);
+  }
+
+  fireLayer = L.polygon(firePts, {
+    color:'#ff4400', fillColor:'#ff4400',
+    fillOpacity:0.25 + 0.1*Math.sin(pulsePhase*2),
+    weight:3, opacity:0.8
+  });
+  layers.fire.addLayer(fireLayer);
+
+  // Embers
+  var emberDist = 100 + (Math.exp(0.08*windSpeedKmh)-1)*300;
+  var numEmbers = Math.min(20, Math.floor(minutesElapsed/2)+3);
+  var seededRand = (function(){var s=simMinute*137+42;return function(){s=(s*16807)%2147483647;return s/2147483647;}})();
+  for (var i = 0; i < numEmbers; i++) {
+    var dist = (0.3+seededRand()*0.7)*emberDist;
+    var scatter = (seededRand()-0.5)*60*Math.PI/180;
+    var angle = windRad + scatter;
+    var headLat = fireCenterLat + (semiMajor*Math.cos(windRad))/111320;
+    var headLng = fireCenterLng + (semiMajor*Math.sin(windRad))/(111320*cosLat);
+    var eLat = headLat + (dist*Math.cos(angle))/111320;
+    var eLng = headLng + (dist*Math.sin(angle))/(111320*cosLat);
+    var neutralized = simTowerState.some(function(ts,ti){
+      if(!ts.active||ts.pumpPct<=0)return false;
+      return haversine([towers[ti].marker.getLatLng().lat,towers[ti].marker.getLatLng().lng],[eLat,eLng])<=getSprayRadius(ts.pumpPct);
+    });
+    var eIcon = L.divIcon({ html:'<div class="ember-dot" style="'+(neutralized?'background:#888;box-shadow:none;animation:none;opacity:0.4;':'')+'"></div>', iconSize:[6,6], iconAnchor:[3,3], className:'' });
+    var em = L.marker([eLat,eLng], {icon:eIcon, interactive:false});
+    layers.fire.addLayer(em); emberMarkers.push(em);
+  }
+
+  // Fire info
+  var fireInfo = document.getElementById('fire-info');
+  fireInfo.innerHTML =
+    '<div class="sim-stat-row"><span>Fire spread</span><span class="sim-stat-val" style="color:#e74c3c;">'+Math.round(semiMajor)+'m</span></div>' +
+    '<div class="sim-stat-row"><span>Ember range</span><span class="sim-stat-val" style="color:#ff8800;">'+Math.round(emberDist)+'m</span></div>' +
+    '<div class="sim-stat-row"><span>Spread rate</span><span class="sim-stat-val">'+(spreadRate*60/1000).toFixed(2)+' km/h</span></div>';
+}
+
+function isPointInFireZone(lat, lng) {
+  if (!fireEllipse || !fireActive || !fireEnabled) return false;
+  var dx = (lng-fireEllipse.centerLng)*111320*Math.cos(fireEllipse.centerLat*Math.PI/180);
+  var dy = (lat-fireEllipse.centerLat)*111320;
+  var cos = Math.cos(-fireEllipse.angle); var sin = Math.sin(-fireEllipse.angle);
+  var rx = dx*cos - dy*sin; var ry = dx*sin + dy*cos;
+  var aa = fireEllipse.semiMinor||1; var bb = fireEllipse.semiMajor||1;
+  return (rx*rx)/(aa*aa)+(ry*ry)/(bb*bb) <= 1;
+}
+
+// ===================== SCADA PANEL =====================
+let scadaVisible = false;
+function toggleSCADA() {
+  scadaVisible = !scadaVisible;
+  document.getElementById('scada-panel').style.display = scadaVisible ? 'block' : 'none';
+  if (scadaVisible) updateSCADAPanel();
+}
+
+function updateSCADAPanel() {
+  var n = towers.length;
+  var activeTowers = timeSimRunning ? simTowerState.filter(function(ts){return ts.active;}).length : 0;
+  var totalFlow = 0;
+  if (timeSimRunning) simTowerState.forEach(function(ts){ if(ts.active) totalFlow += (ts.pumpPct/100)*SPRAY_GPM; });
+  var activeZones = timeSimRunning ? simZoneState.filter(function(zs){return zs.phase==='spray';}).length : 0;
+  var pressure = Math.max(50, 90 - (totalFlow/SOURCE_INFLOW_GPM)*30 + Math.sin(pulsePhase*3)*2);
+  var pressureAlert = pressure < 55 ? 'alert-red' : pressure < 70 ? 'alert-yellow' : '';
+
+  var html =
+    '<div class="scada-meter '+pressureAlert+'"><div class="sm-label">System Pressure</div><div class="sm-value">'+pressure.toFixed(1)+'</div><div class="sm-unit">PSI</div></div>' +
+    '<div class="scada-meter"><div class="sm-label">River Intake Flow</div><div class="sm-value" style="color:#33ff33;">'+Math.round(totalFlow)+'</div><div class="sm-unit">GPM</div></div>' +
+    '<div class="scada-meter"><div class="sm-label">River Capacity</div><div class="sm-value" style="color:#33ff33;">'+SOURCE_INFLOW_GPM+'</div><div class="sm-unit">GPM</div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Active Towers</div><div class="sm-value" style="color:#33ff33;">'+activeTowers+'/'+n+'</div><div class="sm-unit"></div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Active Zones</div><div class="sm-value" style="color:#33ff33;">'+activeZones+'/'+(simZones.length||computeZones().length)+'</div><div class="sm-unit"></div></div>' +
+    '<div class="scada-meter"><div class="sm-label">Load %</div><div class="sm-value" style="color:'+(totalFlow/SOURCE_INFLOW_GPM>0.8?'#ff3333':'#33ff33')+';">'+Math.round(totalFlow/SOURCE_INFLOW_GPM*100)+'</div><div class="sm-unit">%</div></div>';
+  document.getElementById('scada-content').innerHTML = html;
+}
+
+// ===================== RECOMMENDED LAYOUT =====================
+let coverageMode = 'core'; // 'core' or 'full'
+
+function loadRecommended() {
+  resetAll();
+  if (coverageMode === 'core') {
+    // 8 towers — core coverage
+    var positions = [
+      [52.998, -122.508],   // L1: Center primary log yard
+      [53.000, -122.507],   // L2: North end primary log yard
+      [53.001, -122.504],   // L3: Secondary log storage
+      [53.002, -122.508],   // L4: Pinecrest Rd storage
+      [52.997, -122.501],   // S1: Between sawmill and kilns
+      [52.995, -122.500],   // S2: Near plywood/MDF
+      [52.997, -122.496],   // P1: East perimeter
+      [52.997, -122.512],   // P2: West perimeter
+    ];
+    positions.forEach(function(pos) { addTower(pos[0], pos[1]); });
+    showTooltip('\u2713 Loaded 8 towers \u2014 Core coverage layout');
+  } else {
+    // 14 towers — full coverage
+    var positions = [
+      [52.998, -122.508],   // L1
+      [53.000, -122.507],   // L2
+      [53.001, -122.504],   // L3
+      [53.002, -122.508],   // L4
+      [52.999, -122.510],   // L5: Extra log yard
+      [53.001, -122.510],   // L6: Extra log yard north
+      [52.997, -122.501],   // S1
+      [52.995, -122.500],   // S2
+      [52.993, -122.499],   // S3: MDF plant
+      [52.997, -122.496],   // P1
+      [52.997, -122.512],   // P2
+      [52.994, -122.505],   // P3: South perimeter
+      [53.002, -122.500],   // P4: North perimeter
+      [52.993, -122.495],   // P5: SE corner
+    ];
+    positions.forEach(function(pos) { addTower(pos[0], pos[1]); });
+    showTooltip('\u2713 Loaded 14 towers \u2014 Full coverage layout');
+  }
+}
+
+function toggleCoverageConfig() {
+  coverageMode = coverageMode === 'core' ? 'full' : 'core';
+  var btn = document.getElementById('btn-coverage-toggle');
+  btn.textContent = coverageMode === 'core' ? '\u{1f504} Core Coverage (8 towers)' : '\u{1f504} Full Coverage (14 towers)';
+}
+
+function showTooltip(msg) {
+  var tip = document.getElementById('map-tooltip');
+  tip.textContent = msg; tip.classList.remove('hidden');
+  setTimeout(function() { tip.classList.add('hidden'); }, 3000);
+}
+
+// ===================== RESET =====================
+function resetAll() {
+  if (timeSimRunning) stopTimeSim();
+  towers.forEach(function(t) { layers.towers.removeLayer(t.marker); layers.coverage.removeLayer(t.circle); });
+  towers = []; simulated = false;
+  buildingRects.forEach(function(rect, i) {
+    var b = buildings[i]; var rc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
+    rect.setStyle({ color:rc.color, fillColor:rc.fill, fillOpacity:rc.opacity });
+    rect._protectionState = 'unprotected';
+  });
+  removeIgnition(); clearFireVisuals();
+  pipePolylines.forEach(function(pl) { pl.setStyle({color:pl._origColor, weight:pl._origWeight, opacity:0.8}); });
+  updateCoverage(); updateStats(); updateCostOverlay();
+  if (placeMode) togglePlaceMode();
+  if (ignitionMode) toggleIgnitionMode();
+}
+
+// ===================== SAVE / LOAD =====================
+function exportTowers() {
+  var coords = towers.map(function(t) { var p = t.marker.getLatLng(); return [+p.lat.toFixed(6), +p.lng.toFixed(6)]; });
+  navigator.clipboard.writeText(JSON.stringify(coords)).then(function() {
+    alert('Copied ' + coords.length + ' tower positions to clipboard!');
+  }).catch(function() {
+    var blob = new Blob([JSON.stringify(coords)], {type:'application/json'});
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'hydrodome_quesnel_towers_' + new Date().toISOString().slice(0,10) + '.json'; a.click();
+  });
+}
+
+function importTowers() {
+  var input = prompt('Paste tower coordinates JSON:');
+  if (input && input.trim()) {
+    var coords = JSON.parse(input.trim());
+    towers.forEach(function(t) { map.removeLayer(t.marker); if(t.circle) map.removeLayer(t.circle); });
+    towers.length = 0;
+    coords.forEach(function(pos) { addTower(pos[0], pos[1]); });
+    updateStats(); alert('Loaded ' + coords.length + ' towers!');
+  }
+}
+
+// ===================== TEXT EXPORT =====================
+function exportReport() {
+  var n = towers.length;
+  if (n === 0) { alert('No towers to export.'); return; }
+  var zones = computeZones();
+  var covered = 0;
+  buildings.forEach(function(b) { if(towers.some(function(t){ return haversine([t.marker.getLatLng().lat,t.marker.getLatLng().lng],[b.lat,b.lng])<=TOWER_RADIUS_M; })) covered++; });
+  var report = 'HYDRODOME WILDFIRE DEFENSE SYSTEM\nFeasibility Report \u2014 West Fraser Quesnel Sawmill, BC\nGenerated: ' + new Date().toLocaleString() + '\n' +
+    '==================================================\n\n' +
+    'SYSTEM OVERVIEW\n  Total Towers: ' + n + '\n  Zones: ' + zones.length + '\n  Coverage: ' + Math.min(n*TOWER_COVERAGE_HA, SITE_AREA_HA*1.5).toFixed(1) + ' hectares\n\n' +
+    'COVERAGE\n  Structures Protected: ' + covered + ' / ' + buildings.length + '\n\n' +
+    'COST ESTIMATE\n  System Cost: $' + (n*COST_PER_TOWER/1000000).toFixed(1) + 'M CAD\n  Assets Protected: $200M\u2013500M+\n\n' +
+    'TOWER LOCATIONS\n' + towers.map(function(t, i) { var p = t.marker.getLatLng(); return '  Tower '+(i+1)+': '+p.lat.toFixed(4)+'N, '+Math.abs(p.lng).toFixed(4)+'W'; }).join('\n') +
+    '\n\n(c) 2025 Carmanah Wildfire Defense';
+  var blob = new Blob([report], {type:'text/plain'});
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'HydroDome_Quesnel_Report.txt'; a.click();
+}
+
+// ===================== PDF EXPORT =====================
+async function exportPDF() {
+  var n = towers.length;
+  if (n === 0) { alert('Place some towers first.'); return; }
+  var btn = document.querySelector('[onclick="exportPDF()"]');
+  btn.textContent = 'Generating PDF...'; btn.disabled = true;
+  try {
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF('p','mm','a4');
+    var W=210,H=297,margin=15;
+    var green=[45,80,22],orange=[255,107,53];
+    doc.setFillColor.apply(doc,green); doc.rect(0,0,W,35,'F');
+    doc.setFillColor.apply(doc,orange); doc.rect(0,35,W,3,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(255,255,255);
+    doc.text('HYDRODOME',margin,18);
+    doc.setFontSize(11); doc.setTextColor(255,200,150);
+    doc.text('WILDFIRE DEFENSE \u2014 WEST FRASER QUESNEL SAWMILL',margin,28);
+    var y=48;
+    doc.setFontSize(10); doc.setTextColor(100,100,100);
+    doc.text('Quesnel, BC  |  Generated: '+new Date().toLocaleDateString(),margin,y); y+=10;
+    try {
+      var mapCanvas = await html2canvas(document.getElementById('map'),{useCORS:true,scale:1.5,logging:false});
+      var imgData = mapCanvas.toDataURL('image/jpeg',0.85);
+      var imgW=W-margin*2; var imgH=imgW*0.55;
+      doc.addImage(imgData,'JPEG',margin,y,imgW,imgH); y+=imgH+8;
+    } catch(e) { y += 10; }
+    doc.setFillColor.apply(doc,green); doc.rect(margin,y,W-margin*2,7,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255,255,255);
+    doc.text('SYSTEM OVERVIEW',margin+3,y+5); y+=12;
+    var zones = computeZones();
+    var items = [['Total Towers',''+n],['Zones',''+zones.length],['Flow per tower',TOWER_GPM+' GPM'],['Coverage',Math.min(n*TOWER_COVERAGE_HA,SITE_AREA_HA*1.5).toFixed(1)+' ha'],['System Cost','$'+(n*COST_PER_TOWER/1000000).toFixed(1)+'M CAD']];
+    doc.setFontSize(10);
+    items.forEach(function(kv){ doc.setTextColor(80,80,80); doc.setFont('helvetica','normal'); doc.text(kv[0]+':',margin+2,y); doc.setFont('helvetica','bold'); doc.setTextColor(30,30,30); doc.text(kv[1],margin+60,y); y+=6; });
+    y+=6;
+    doc.setFillColor.apply(doc,green); doc.rect(margin,y,W-margin*2,7,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(255,255,255);
+    doc.text('TOWER LOCATIONS',margin+3,y+5); y+=12;
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(40,40,40);
+    towers.forEach(function(t,i){ var p=t.marker.getLatLng(); doc.text('Tower '+(i+1)+': '+p.lat.toFixed(5)+'N, '+Math.abs(p.lng).toFixed(5)+'W',margin+2,y); y+=5; });
+    y=H-15;
+    doc.setFontSize(8); doc.setTextColor(150,150,150);
+    doc.text('(c) 2025 Carmanah Wildfire Defense \u2014 HydroDome Wildfire Defense System',margin,y);
+    doc.save('HydroDome_Quesnel_Report.pdf');
+  } catch(e) { console.error(e); alert('PDF generation failed.'); }
+  btn.textContent = 'Export PDF'; btn.disabled = false;
+}
+
+// ===================== LAYER TOGGLE =====================
+function toggleLayer(name, visible) {
+  if (visible) map.addLayer(layers[name]);
+  else map.removeLayer(layers[name]);
+}
+
+// ===================== SECTION COLLAPSE =====================
+function toggleSectionCollapse(headerEl) {
+  headerEl.closest('.section').classList.toggle('collapsed');
+}
+
+// ===================== SPRAY ANIMATION =====================
+let sprayAnimEnabled = true;
+
+function setSprayAnimation(on) {
+  sprayAnimEnabled = on;
+  var chk = document.getElementById('chk-spray-anim');
+  var canvas = document.getElementById('spray-canvas');
+  if (chk) chk.checked = on;
+  if (canvas) canvas.style.display = on ? 'block' : 'none';
+}
+
+function initSprayCanvas() {
+  var canvas = document.getElementById('spray-canvas');
+  var container = document.getElementById('map-container');
+  function resize() { canvas.width = container.clientWidth; canvas.height = container.clientHeight; }
+  resize();
+  window.addEventListener('resize', resize);
+  map.on('move zoom resize', resize);
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!sprayAnimEnabled || !timeSimRunning) {
+      canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+      return;
+    }
+    drawSprayAnimation(canvas);
+  }
+  animate();
+}
+
+function drawSprayAnimation(canvas) {
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  var now = performance.now();
+  var baseAngle = ((now/30000)*simSpeed*2*Math.PI)%(2*Math.PI);
+
+  // Mist haze pass
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  simTowerState.forEach(function(ts,ti) {
+    if (!ts.active || ts.pumpPct <= 0) return;
+    var tPos = towers[ti].marker.getLatLng();
+    var pt = map.latLngToContainerPoint(tPos);
+    var radiusM = getSprayRadius(ts.pumpPct);
+    var p1 = map.latLngToContainerPoint([tPos.lat, tPos.lng]);
+    var p2 = map.latLngToContainerPoint([tPos.lat + radiusM/111320, tPos.lng]);
+    var radiusPx = Math.abs(p1.y - p2.y);
+    if (radiusPx < 2) return;
+    var hazeOpacity = 0.08 + 0.04*Math.sin(now/1000+ti*0.8);
+    ctx.fillStyle = 'rgba(100, 180, 255, '+hazeOpacity.toFixed(3)+')';
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, radiusPx, 0, Math.PI*2); ctx.fill();
+  });
+  ctx.restore();
+
+  // Spray arms pass
+  simTowerState.forEach(function(ts,ti) {
+    if (!ts.active || ts.pumpPct <= 0) return;
+    var tPos = towers[ti].marker.getLatLng();
+    var pt = map.latLngToContainerPoint(tPos);
+    var radiusM = getSprayRadius(ts.pumpPct);
+    var p1 = map.latLngToContainerPoint([tPos.lat, tPos.lng]);
+    var p2 = map.latLngToContainerPoint([tPos.lat + radiusM/111320, tPos.lng]);
+    var radiusPx = Math.abs(p1.y - p2.y);
+    if (radiusPx < 2) return;
+    var angle = baseAngle + ti*0.7;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(180, 220, 255, 0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(pt.x, pt.y);
+    ctx.lineTo(pt.x + Math.cos(angle)*radiusPx, pt.y + Math.sin(angle)*radiusPx);
+    ctx.stroke();
+    var fanAngle = 40*Math.PI/180;
+    ctx.fillStyle = 'rgba(100, 180, 255, 0.25)';
+    ctx.beginPath(); ctx.moveTo(pt.x, pt.y);
+    ctx.arc(pt.x, pt.y, radiusPx, angle-fanAngle, angle, false);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ===================== INIT =====================
+updateStats();
+updateCoverage();
+updateCostOverlay();
+initSprayCanvas();
+L.control.scale({ imperial:true, metric:true }).addTo(map);
+
+// Auto-load the default ignition point at Pinecrest Rd (Aug 2024 fire location)
+setIgnitionPoint(53.002, -122.508);
+
+// Load recommended core layout by default
+loadRecommended();
+
+</script>
+</body>
+</html>
