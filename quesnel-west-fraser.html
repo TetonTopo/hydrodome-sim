@@ -290,7 +290,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; display:fl
         <button class="btn btn-outline" style="flex:1" onclick="exportPDF()">&#x1f4c4; Export PDF</button>
         <button class="btn btn-scada" style="flex:1" onclick="toggleSCADA()">&#x1f4ca; SCADA Dashboard</button>
       </div>
-      <button class="btn btn-outline" id="btn-coverage-toggle" onclick="toggleCoverageConfig()" style="margin-top:4px;border-color:#9b59b6;color:#9b59b6;">&#x1f504; Core Coverage (8 towers)</button>
+      <button class="btn btn-outline" id="btn-coverage-toggle" onclick="toggleCoverageConfig()" style="margin-top:4px;border-color:#9b59b6;color:#9b59b6;">&#x1f504; Grid Layout (drag to optimize)</button>
     </div>
   </div>
 
@@ -547,9 +547,12 @@ Payback period: <span class="info-value">2–5 years</span></div>
     <div class="legend-item"><div class="legend-color" style="background:#4da6ff;"></div> Branch (8"–10")</div>
     <div class="legend-item"><div class="legend-color" style="background:rgba(52,152,219,0.3);height:6px;border:1px solid #3498db;border-radius:3px;"></div> HydroDome Coverage (150m)</div>
     <div class="legend-item"><div class="legend-circle" style="background:#e74c3c;border-color:#e74c3c;width:8px;height:8px;"></div> Hydrant / Connection</div>
-    <div class="legend-item"><div class="legend-color" style="background:#e74c3c;"></div> HIGH RISK (Log Yards/Fuel)</div>
-    <div class="legend-item"><div class="legend-color" style="background:#FF6B35;"></div> MODERATE (Processing)</div>
-    <div class="legend-item"><div class="legend-color" style="background:#f1c40f;"></div> LOW (Offices/Support)</div>
+    <div style="margin-top:6px;font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:1px;">Structures</div>
+    <div class="legend-item"><div style="width:20px;height:10px;background:#4a6d8c;border:2px solid #5b7fa5;margin-right:8px;"></div> Building (solid)</div>
+    <div class="legend-item"><div style="width:20px;height:10px;background:rgba(230,126,34,0.2);border:2px dashed #e67e22;margin-right:8px;"></div> Open Yard (HIGH risk)</div>
+    <div class="legend-item"><div style="width:20px;height:10px;background:rgba(231,76,60,0.3);border:2px dashed #e74c3c;margin-right:8px;"></div> Open Yard (EXTREME)</div>
+    <div class="legend-item"><div style="width:14px;height:14px;background:rgba(160,96,58,0.35);border:2px dashed #c0713a;border-radius:50%;margin-right:8px;"></div> Chip / Fuel Pile</div>
+    <div style="margin-top:6px;font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:1px;">Fire Sim</div>
     <div class="legend-item"><div class="legend-color" style="background:linear-gradient(90deg,#ff4400,#ff8800);height:6px;"></div> Fire Front</div>
     <div class="legend-item"><div class="legend-circle" style="background:#ffaa00;border-color:#ff6600;width:8px;height:8px;"></div> Ember Zone</div>
   </div>
@@ -599,61 +602,72 @@ function haversine(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
 }
 
-// ===================== DATA: WATER NETWORK (Approximated On-Site) =====================
+// ===================== DATA: WATER NETWORK (On-Site — West Bank Only) =====================
+// All infrastructure on the WEST bank of the Quesnel River. Intake draws from river at bank.
 const waterMains = [
-  // M1: Main trunk line from river intake westward through complex (12" = 300mm)
-  { id:'M1', pts:[[52.9970,-122.4950],[52.9972,-122.4965],[52.9974,-122.4980],[52.9974,-122.4995],[52.9975,-122.5010],[52.9975,-122.5025],[52.9976,-122.5040],[52.9978,-122.5060],[52.9980,-122.5080]], diam:0.300, label:'M1 — Main Trunk (12")' },
-  // B1: Branch to sawmill complex (8" = 200mm)
-  { id:'B1', pts:[[52.9974,-122.4995],[52.9970,-122.5010],[52.9968,-122.5020],[52.9965,-122.5025]], diam:0.200, label:'B1 — Sawmill Branch (8")' },
-  // B2: Branch to plywood/MDF complex (8" = 200mm)
-  { id:'B2', pts:[[52.9974,-122.4995],[52.9955,-122.4990],[52.9940,-122.4995],[52.9930,-122.5000]], diam:0.200, label:'B2 — Plywood/MDF Branch (8")' },
-  // B3: Branch to kiln area (8" = 200mm)
-  { id:'B3', pts:[[52.9975,-122.5010],[52.9980,-122.5015],[52.9985,-122.5010]], diam:0.200, label:'B3 — Kiln Branch (8")' },
-  // L1: Log yard perimeter loop — west side (10" = 250mm)
-  { id:'L1', pts:[[52.9980,-122.5080],[52.9990,-122.5090],[53.0000,-122.5095],[53.0010,-122.5090],[53.0015,-122.5080]], diam:0.250, label:'L1 — Log Yard Loop West (10")' },
-  // L2: Log yard perimeter loop — east side (10" = 250mm)
-  { id:'L2', pts:[[53.0015,-122.5080],[53.0015,-122.5060],[53.0010,-122.5040],[53.0005,-122.5030],[52.9980,-122.5025]], diam:0.250, label:'L2 — Log Yard Loop East (10")' },
-  // L3: Log yard loop south connector
-  { id:'L3', pts:[[52.9980,-122.5025],[52.9978,-122.5060],[52.9980,-122.5080]], diam:0.250, label:'L3 — Log Yard Loop South (10")' },
-  // B4: East perimeter branch (8")
-  { id:'B4', pts:[[52.9972,-122.4965],[52.9960,-122.4960],[52.9950,-122.4958]], diam:0.200, label:'B4 — East Perimeter (8")' },
-  // B5: Secondary log storage branch (8")
-  { id:'B5', pts:[[53.0005,-122.5030],[53.0010,-122.5040],[53.0015,-122.5035]], diam:0.200, label:'B5 — Secondary Storage (8")' },
-  // Municipal connection line from Brownmiller Rd
-  { id:'MUN', pts:[[52.9945,-122.5050],[52.9955,-122.5040],[52.9965,-122.5030],[52.9975,-122.5025]], diam:0.200, label:'MUN — Municipal Connection (8")' },
+  // M1: Main trunk line from river intake (on west bank) westward through complex (12" = 300mm)
+  { id:'M1', pts:[[52.9972,-122.4985],[52.9972,-122.5000],[52.9973,-122.5015],[52.9974,-122.5030],[52.9976,-122.5045],[52.9980,-122.5060]], diam:0.300, label:'M1 — Main Trunk (12\")' },
+  // B1: Branch north to sawmill/kiln area (8" = 200mm)
+  { id:'B1', pts:[[52.9973,-122.5015],[52.9978,-122.5015],[52.9983,-122.5010],[52.9988,-122.5005]], diam:0.200, label:'B1 — Sawmill/Kiln Branch (8\")' },
+  // B2: Branch south to lumber yards and MDF/corporate area (8" = 200mm)
+  { id:'B2', pts:[[52.9972,-122.5000],[52.9965,-122.5005],[52.9958,-122.5010],[52.9952,-122.5020]], diam:0.200, label:'B2 — South Yard Branch (8\")' },
+  // B3: Branch south along Brownmiller Rd to corporate/substation (8")
+  { id:'B3', pts:[[52.9952,-122.5020],[52.9945,-122.5030],[52.9940,-122.5038]], diam:0.200, label:'B3 — Brownmiller Rd Branch (8\")' },
+  // L1: Log yard perimeter loop — north side (10" = 250mm)
+  { id:'L1', pts:[[52.9980,-122.5060],[52.9990,-122.5065],[52.9998,-122.5060],[53.0003,-122.5050]], diam:0.250, label:'L1 — Log Yard Loop North (10\")' },
+  // L2: Log yard perimeter loop — east return (10" = 250mm)
+  { id:'L2', pts:[[53.0003,-122.5050],[53.0000,-122.5035],[52.9995,-122.5020],[52.9988,-122.5005]], diam:0.250, label:'L2 — Log Yard Loop East (10\")' },
+  // L3: Log yard loop — south connector back to trunk
+  { id:'L3', pts:[[52.9988,-122.5005],[52.9983,-122.5010],[52.9976,-122.5045],[52.9980,-122.5060]], diam:0.250, label:'L3 — Log Yard Loop South (10\")' },
+  // B4: Branch to planer mill area (8")
+  { id:'B4', pts:[[52.9974,-122.5030],[52.9980,-122.5035],[52.9985,-122.5040]], diam:0.200, label:'B4 — Planer Mill Branch (8\")' },
+  // MUN: Municipal connection from Brownmiller Rd (backup supply)
+  { id:'MUN', pts:[[52.9935,-122.5055],[52.9940,-122.5045],[52.9945,-122.5038],[52.9952,-122.5020]], diam:0.200, label:'MUN — Municipal Connection (8\")' },
 ];
 
-const riverIntake = { lat:52.9970, lng:-122.4950, label:'Fraser River Intake' };
-const municipalConn = { lat:52.9945, lng:-122.5050, label:'Municipal Water (Brownmiller Rd)' };
+const riverIntake = { lat:52.9972, lng:-122.4985, label:'Quesnel River Intake (West Bank)' };
+const municipalConn = { lat:52.9935, lng:-122.5055, label:'Municipal Water (Brownmiller Rd)' };
 
-// ===================== BUILDINGS & STRUCTURES =====================
-// Each building has: lat, lng, w (width in degrees ~m), h (height in degrees ~m), name, risk
+// ===================== STRUCTURES & ZONES =====================
+// Two types: 'building' (solid structure) and 'yard' (open storage area)
+// Positions traced from satellite imagery at 52.9974°N, -122.5017°W
 const structureDefs = [
-  // Core Sawmill Complex
-  { lat:52.9970, lng:-122.5020, w:0.0018, h:0.0007, name:'Main Sawmill Building', risk:'orange' },
-  { lat:52.9975, lng:-122.5008, w:0.0009, h:0.00035, name:'Planer Mill', risk:'orange' },
-  { lat:52.9982, lng:-122.5015, w:0.00055, h:0.00018, name:'Kiln Building 1', risk:'orange' },
-  { lat:52.9982, lng:-122.5008, w:0.00055, h:0.00018, name:'Kiln Building 2', risk:'orange' },
-  { lat:52.9982, lng:-122.5001, w:0.00055, h:0.00018, name:'Kiln Building 3', risk:'orange' },
-  { lat:52.9982, lng:-122.4994, w:0.00055, h:0.00018, name:'Kiln Building 4', risk:'orange' },
-  { lat:52.9965, lng:-122.5030, w:0.00028, h:0.00013, name:'Sawmill Office / Admin', risk:'yellow' },
-  // Plywood & MDF Complex
-  { lat:52.9935, lng:-122.5000, w:0.0014, h:0.00055, name:'Plywood Mill (Quesnel Plywood)', risk:'orange' },
-  { lat:52.9928, lng:-122.4985, w:0.0011, h:0.00045, name:'WestPine MDF Plant', risk:'orange' },
-  { lat:52.9940, lng:-122.5020, w:0.0018, h:0.00027, name:'Chip Storage / Conveyor Area', risk:'orange' },
-  // Log Yards — HIGHEST RISK
-  { lat:52.9980, lng:-122.5080, w:0.0036, h:0.0018, name:'Primary Log Sort Yard', risk:'red' },
-  { lat:53.0010, lng:-122.5040, w:0.0027, h:0.00135, name:'Secondary Log Storage', risk:'red' },
-  { lat:53.0020, lng:-122.5080, w:0.0020, h:0.0010, name:'Pinecrest Rd Log Storage (AUG 2024 FIRE)', risk:'fire' },
-  // Support Infrastructure
-  { lat:52.9950, lng:-122.5050, w:0.00035, h:0.00015, name:'Truck Scale / Weigh Station', risk:'yellow' },
-  { lat:52.9960, lng:-122.5035, w:0.00055, h:0.00027, name:'Maintenance Shop', risk:'yellow' },
-  { lat:52.9958, lng:-122.4970, w:0.00020, h:0.00015, name:'Fuel Storage (HIGH RISK)', risk:'fire' },
+  // === BUILDINGS (solid structures — blue/gray fill, solid border) ===
+  // Main Sawmill — large silver-roofed cluster, center-east of complex
+  { lat:52.9975, lng:-122.5005, w:0.0016, h:0.0008, name:'Main Sawmill', type:'building', risk:'moderate' },
+  // Planer Mill — labeled on satellite, west/northwest of sawmill
+  { lat:52.9982, lng:-122.5038, w:0.0012, h:0.0005, name:'Planer Mill', type:'building', risk:'moderate' },
+  // Kiln buildings — row of parallel narrow structures NE of sawmill
+  { lat:52.9985, lng:-122.5000, w:0.0006, h:0.00018, name:'Kiln 1', type:'building', risk:'moderate' },
+  { lat:52.9985, lng:-122.4993, w:0.0006, h:0.00018, name:'Kiln 2', type:'building', risk:'moderate' },
+  { lat:52.9985, lng:-122.4986, w:0.0006, h:0.00018, name:'Kiln 3', type:'building', risk:'moderate' },
+  // MDF Substation / WestPine — south of main complex near Brownmiller Rd
+  { lat:52.9948, lng:-122.5015, w:0.0010, h:0.0005, name:'Mill Substation', type:'building', risk:'moderate' },
+  // West Fraser Corporate office — south along Brownmiller
+  { lat:52.9942, lng:-122.5000, w:0.0006, h:0.0003, name:'Corporate Office', type:'building', risk:'low' },
+  // Maintenance shop — west side of complex
+  { lat:52.9968, lng:-122.5045, w:0.0005, h:0.00025, name:'Maintenance Shop', type:'building', risk:'low' },
+  // Truck scale at main entrance
+  { lat:52.9940, lng:-122.5040, w:0.0003, h:0.00012, name:'Truck Scale', type:'building', risk:'low' },
+
+  // === OPEN YARDS (dashed borders, warm semi-transparent fill) ===
+  // Primary log sort yard — large open area NW of sawmill, stacked logs visible
+  { lat:52.9992, lng:-122.5055, w:0.0030, h:0.0015, name:'Log Sort Yard (Primary)', type:'yard', risk:'high' },
+  // Secondary log storage — north area near McLeod Rd
+  { lat:53.0003, lng:-122.5035, w:0.0025, h:0.0010, name:'Log Storage (North)', type:'yard', risk:'high' },
+  // Pinecrest Rd log storage — NW corner, site of Aug 2024 fire
+  { lat:53.0005, lng:-122.5065, w:0.0018, h:0.0008, name:'Pinecrest Rd Storage (AUG 2024 FIRE)', type:'yard', risk:'extreme' },
+  // Lumber drying / storage yard — south-west of sawmill, rows of stacked lumber
+  { lat:52.9960, lng:-122.5020, w:0.0020, h:0.0012, name:'Lumber Drying Yard', type:'yard', risk:'high' },
+  // Chip / hog fuel storage — brownish mounds visible in satellite, south
+  { lat:52.9955, lng:-122.4995, w:0.0008, h:0.0006, name:'Chip / Hog Fuel Pile', type:'pile', risk:'high' },
+  // Finished lumber storage — stacked lumber east of planer
+  { lat:52.9978, lng:-122.5020, w:0.0014, h:0.0008, name:'Finished Lumber Storage', type:'yard', risk:'high' },
 ];
 
-// Rail siding - linear feature
+// Rail siding - linear feature running through south part of site
 const railSiding = [
-  [52.9930,-122.5060],[52.9940,-122.5045],[52.9955,-122.5025],[52.9970,-122.5005],[52.9985,-122.4985]
+  [52.9935,-122.5060],[52.9942,-122.5040],[52.9950,-122.5020],[52.9960,-122.5005],[52.9970,-122.4990]
 ];
 
 // ===================== LAYER GROUPS =====================
@@ -711,41 +725,74 @@ uniqueHydrants.forEach(function(h) {
     .bindTooltip('Hydrant / Connection Point').addTo(layers.hydrants);
 });
 
-// ===================== RENDER BUILDINGS =====================
-const RISK_COLORS = {
-  red: { color:'#e74c3c', fill:'#e74c3c', opacity:0.45 },
-  orange: { color:'#FF6B35', fill:'#FF6B35', opacity:0.40 },
-  yellow: { color:'#f1c40f', fill:'#f1c40f', opacity:0.35 },
-  fire: { color:'#ff0000', fill:'#ff0000', opacity:0.55 },
+// ===================== RENDER STRUCTURES & ZONES =====================
+// Style config: buildings = solid blue/gray, yards = dashed warm, piles = circular
+const STYLE_MAP = {
+  // Buildings by risk
+  'building-moderate': { color:'#5b7fa5', fill:'#4a6d8c', opacity:0.55, weight:2, dash:null },
+  'building-low':      { color:'#7a8a7a', fill:'#6a7a6a', opacity:0.45, weight:2, dash:null },
+  // Open yards by risk
+  'yard-high':    { color:'#e67e22', fill:'#e67e22', opacity:0.20, weight:2.5, dash:'8,5' },
+  'yard-extreme': { color:'#e74c3c', fill:'#e74c3c', opacity:0.30, weight:3, dash:'6,4' },
+  // Chip/hog fuel piles
+  'pile-high':    { color:'#c0713a', fill:'#a0603a', opacity:0.35, weight:2, dash:'4,4' },
 };
+
+function getStructureStyle(s) {
+  var key = (s.type || 'building') + '-' + (s.risk || 'moderate');
+  return STYLE_MAP[key] || STYLE_MAP['building-moderate'];
+}
 
 const buildings = [];
 const buildingRects = [];
 structureDefs.forEach(function(s, i) {
-  var rc = RISK_COLORS[s.risk] || RISK_COLORS.yellow;
+  var st = getStructureStyle(s);
   var bounds = [
     [s.lat - s.h/2, s.lng - s.w/2],
     [s.lat + s.h/2, s.lng + s.w/2]
   ];
-  var rect = L.rectangle(bounds, {
-    color: rc.color, fillColor: rc.fill, fillOpacity: rc.opacity, weight: 2,
-    dashArray: s.risk === 'fire' ? '6,4' : null
-  }).bindTooltip('<b>' + s.name + '</b><br>Risk: ' + s.risk.toUpperCase());
 
-  if (s.risk === 'fire') {
-    // Add pulsing fire hazard indicator
+  var shape;
+  if (s.type === 'pile') {
+    // Render as circle for chip/hog fuel piles
+    shape = L.circle([s.lat, s.lng], {
+      radius: Math.max(s.w, s.h) * 111320 / 2 * 0.6,
+      color: st.color, fillColor: st.fill, fillOpacity: st.opacity,
+      weight: st.weight, dashArray: st.dash
+    });
+  } else {
+    shape = L.rectangle(bounds, {
+      color: st.color, fillColor: st.fill, fillOpacity: st.opacity,
+      weight: st.weight, dashArray: st.dash
+    });
+  }
+
+  var riskLabel = s.risk === 'extreme' ? 'EXTREME' : s.risk === 'high' ? 'HIGH' : s.risk === 'moderate' ? 'MODERATE' : 'LOW';
+  var typeLabel = s.type === 'yard' ? 'Open Yard' : s.type === 'pile' ? 'Material Pile' : 'Building';
+  shape.bindTooltip('<b>' + s.name + '</b><br>' + typeLabel + ' \u2014 Risk: ' + riskLabel);
+
+  // Add text label on map
+  var labelIcon = L.divIcon({
+    html: '<div style="font-size:9px;color:' + (s.type==='building'?'#aaccee':'#ffcc88') + ';font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;pointer-events:none;">' + s.name + '</div>',
+    iconSize: [120, 14], iconAnchor: [60, 7], className: ''
+  });
+  L.marker([s.lat, s.lng], { icon: labelIcon, interactive: false }).addTo(layers.buildings);
+
+  // Fire hazard icon for extreme risk
+  if (s.risk === 'extreme') {
     var fireIcon = L.divIcon({
       html:'<div style="font-size:20px;text-shadow:0 0 8px #ff4400;animation:ember-flicker 0.6s infinite alternate;">&#x1f525;</div>',
       iconSize:[20,20], iconAnchor:[10,10], className:''
     });
-    L.marker([s.lat, s.lng], { icon:fireIcon, interactive:false }).addTo(layers.riskZones);
+    L.marker([s.lat, s.lng + 0.0012], { icon:fireIcon, interactive:false }).addTo(layers.riskZones);
   }
 
-  rect._buildingData = { lat:s.lat, lng:s.lng, id:i, name:s.name, risk:s.risk };
-  rect._protectionState = 'unprotected';
-  buildingRects.push(rect);
-  layers.buildings.addLayer(rect);
-  buildings.push({ lat:s.lat, lng:s.lng, id:i, name:s.name, risk:s.risk });
+  shape._buildingData = { lat:s.lat, lng:s.lng, id:i, name:s.name, risk:s.risk, type:s.type||'building' };
+  shape._protectionState = 'unprotected';
+  shape._origStyle = st;
+  buildingRects.push(shape);
+  layers.buildings.addLayer(shape);
+  buildings.push({ lat:s.lat, lng:s.lng, id:i, name:s.name, risk:s.risk, type:s.type||'building' });
 });
 
 // Rail siding
@@ -755,7 +802,7 @@ L.polyline(railSiding, { color:'#888', weight:3, opacity:0.6, dashArray:'10,6' }
 // Water source markers
 var intakeIcon = L.divIcon({ html:'<div style="font-size:20px;">&#x1f4a7;</div>', iconSize:[24,24], iconAnchor:[12,12], className:'' });
 L.marker([riverIntake.lat, riverIntake.lng], { icon:intakeIcon })
-  .bindPopup('<b>Primary Water Source</b><br>Fraser River Intake<br>Capacity: 12,000+ GPM').addTo(map);
+  .bindPopup('<b>Primary Water Source</b><br>Quesnel River Intake (West Bank)<br>Capacity: 12,000+ GPM').addTo(map);
 
 var munIcon = L.divIcon({ html:'<div style="font-size:16px;">&#x1f6b0;</div>', iconSize:[20,20], iconAnchor:[10,10], className:'' });
 L.marker([municipalConn.lat, municipalConn.lng], { icon:munIcon })
@@ -873,12 +920,12 @@ function updateCoverage() {
     if (isCovered) covered++;
     if (!timeSimRunning) {
       var rect = buildingRects[i];
-      var origRc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
+      var origSt = rect._origStyle;
       if (isCovered) {
-        rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity:0.5 });
+        rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity:0.45, dashArray:null });
         rect._protectionState = 'protected';
-      } else {
-        rect.setStyle({ color:origRc.color, fillColor:origRc.fill, fillOpacity:origRc.opacity });
+      } else if (origSt) {
+        rect.setStyle({ color:origSt.color, fillColor:origSt.fill, fillOpacity:origSt.opacity, dashArray:origSt.dash });
         rect._protectionState = 'unprotected';
       }
     }
@@ -1126,10 +1173,9 @@ function stopTimeSim() {
   layers.simSpray.clearLayers();
   simTowerState.forEach(function(s) { s.sprayLayer = null; s.inactiveRing = null; });
   towers.forEach(function(t) { t.marker.setIcon(defaultTowerIcon); t.circle.setStyle({ opacity:0.5, fillOpacity:0.12 }); });
-  buildingRects.forEach(function(rect, i) {
-    var b = buildings[i];
-    var rc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
-    rect.setStyle({ color:rc.color, fillColor:rc.fill, fillOpacity:rc.opacity });
+  buildingRects.forEach(function(rect) {
+    var st = rect._origStyle;
+    if (st) rect.setStyle({ color:st.color, fillColor:st.fill, fillOpacity:st.opacity, dashArray:st.dash });
     rect._protectionState = 'unprotected';
   });
   clearFireVisuals();
@@ -1228,11 +1274,11 @@ function simTick() {
       rect.setStyle({ color:'#3498db', fillColor:'#3498db', fillOpacity: 0.4 + 0.3*(0.5+0.5*Math.sin(pulsePhase)) });
       rect._protectionState = 'protected'; protectedCount++;
     } else if (fireActive && isPointInFireZone(b.lat, b.lng)) {
-      rect.setStyle({ color:'#e74c3c', fillColor:'#e74c3c', fillOpacity:0.7 });
+      rect.setStyle({ color:'#e74c3c', fillColor:'#e74c3c', fillOpacity:0.7, dashArray:null });
       rect._protectionState = 'atrisk';
     } else {
-      var rc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
-      rect.setStyle({ color:rc.color, fillColor:rc.fill, fillOpacity:rc.opacity });
+      var origSt = rect._origStyle;
+      if (origSt) rect.setStyle({ color:origSt.color, fillColor:origSt.fill, fillOpacity:origSt.opacity, dashArray:origSt.dash });
       rect._protectionState = 'unprotected';
     }
   });
@@ -1522,47 +1568,32 @@ let coverageMode = 'core'; // 'core' or 'full'
 
 function loadRecommended() {
   resetAll();
-  if (coverageMode === 'core') {
-    // 8 towers — core coverage
-    var positions = [
-      [52.998, -122.508],   // L1: Center primary log yard
-      [53.000, -122.507],   // L2: North end primary log yard
-      [53.001, -122.504],   // L3: Secondary log storage
-      [53.002, -122.508],   // L4: Pinecrest Rd storage
-      [52.997, -122.501],   // S1: Between sawmill and kilns
-      [52.995, -122.500],   // S2: Near plywood/MDF
-      [52.997, -122.496],   // P1: East perimeter
-      [52.997, -122.512],   // P2: West perimeter
-    ];
-    positions.forEach(function(pos) { addTower(pos[0], pos[1]); });
-    showTooltip('\u2713 Loaded 8 towers \u2014 Core coverage layout');
-  } else {
-    // 14 towers — full coverage
-    var positions = [
-      [52.998, -122.508],   // L1
-      [53.000, -122.507],   // L2
-      [53.001, -122.504],   // L3
-      [53.002, -122.508],   // L4
-      [52.999, -122.510],   // L5: Extra log yard
-      [53.001, -122.510],   // L6: Extra log yard north
-      [52.997, -122.501],   // S1
-      [52.995, -122.500],   // S2
-      [52.993, -122.499],   // S3: MDF plant
-      [52.997, -122.496],   // P1
-      [52.997, -122.512],   // P2
-      [52.994, -122.505],   // P3: South perimeter
-      [53.002, -122.500],   // P4: North perimeter
-      [52.993, -122.495],   // P5: SE corner
-    ];
-    positions.forEach(function(pos) { addTower(pos[0], pos[1]); });
-    showTooltip('\u2713 Loaded 14 towers \u2014 Full coverage layout');
-  }
+  // Grid pattern at ~250m spacing across the operational area (west bank only)
+  // Operational bounds: N=53.0010, S=52.9940, W=-122.5070, E=-122.4985
+  // All positions verified to be on land, west of Quesnel River
+  var gridPositions = [
+    // Row 1 (north): ~53.0005
+    [53.0005, -122.5060],
+    [53.0005, -122.5030],
+    [53.0005, -122.5000],
+    // Row 2: ~52.9985
+    [52.9985, -122.5060],
+    [52.9985, -122.5030],
+    [52.9985, -122.5000],
+    // Row 3: ~52.9965
+    [52.9965, -122.5045],
+    [52.9965, -122.5015],
+    [52.9965, -122.4990],
+    // Row 4 (south): ~52.9945
+    [52.9945, -122.5040],
+    [52.9945, -122.5010],
+  ];
+  gridPositions.forEach(function(pos) { addTower(pos[0], pos[1]); });
+  showTooltip('\u2713 Loaded ' + gridPositions.length + ' towers \u2014 250m grid pattern (drag to optimize)');
 }
 
 function toggleCoverageConfig() {
-  coverageMode = coverageMode === 'core' ? 'full' : 'core';
-  var btn = document.getElementById('btn-coverage-toggle');
-  btn.textContent = coverageMode === 'core' ? '\u{1f504} Core Coverage (8 towers)' : '\u{1f504} Full Coverage (14 towers)';
+  loadRecommended();
 }
 
 function showTooltip(msg) {
@@ -1576,9 +1607,9 @@ function resetAll() {
   if (timeSimRunning) stopTimeSim();
   towers.forEach(function(t) { layers.towers.removeLayer(t.marker); layers.coverage.removeLayer(t.circle); });
   towers = []; simulated = false;
-  buildingRects.forEach(function(rect, i) {
-    var b = buildings[i]; var rc = RISK_COLORS[b.risk] || RISK_COLORS.yellow;
-    rect.setStyle({ color:rc.color, fillColor:rc.fill, fillOpacity:rc.opacity });
+  buildingRects.forEach(function(rect) {
+    var st = rect._origStyle;
+    if (st) rect.setStyle({ color:st.color, fillColor:st.fill, fillOpacity:st.opacity, dashArray:st.dash });
     rect._protectionState = 'unprotected';
   });
   removeIgnition(); clearFireVisuals();
@@ -1774,9 +1805,9 @@ initSprayCanvas();
 L.control.scale({ imperial:true, metric:true }).addTo(map);
 
 // Auto-load the default ignition point at Pinecrest Rd (Aug 2024 fire location)
-setIgnitionPoint(53.002, -122.508);
+setIgnitionPoint(53.0005, -122.5065);
 
-// Load recommended core layout by default
+// Load grid-pattern tower layout by default
 loadRecommended();
 
 </script>
